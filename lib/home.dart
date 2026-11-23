@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'explorer.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'location.dart';
@@ -131,7 +133,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (top.isEmpty) return <Widget>[];
                 final t = top.first;
                 return [
-                  StorageMapView(container: mapOwner(t.loc)!, litId: t.loc, caption: '${t.name} is in ${store.short(t.loc)}'),
+                  StorageMapView(
+                    container: mapOwner(t.loc)!,
+                    litId: t.loc,
+                    caption: '${t.name} is in ${store.short(t.loc)} · tap to open',
+                    onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => DrawerExplorer(container: mapOwner(t.loc)!, drawer: d, focusItemId: d.id == t.loc ? t.id : null, onShootHere: widget.onGoCapture))),
+                  ),
                   const SizedBox(height: 14),
                 ];
               }(),

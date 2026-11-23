@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'explorer.dart';
+
 import 'capture.dart';
 import 'models.dart';
 import 'parse.dart';
@@ -104,14 +106,14 @@ class LocationScreen extends StatelessWidget {
               StorageMapView(
                 container: l,
                 caption: 'Tap a drawer to see what’s inside',
-                onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationScreen(id: d.id, onShootHere: onShootHere))),
+                onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => DrawerExplorer(container: l, drawer: d, onShootHere: onShootHere))),
               )
             else if (mapOwner(l.id) != null)
               StorageMapView(
                 container: mapOwner(l.id)!,
                 litId: l.id,
                 caption: 'You’re looking in ${l.name}',
-                onTapDrawer: (d) => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LocationScreen(id: d.id, onShootHere: onShootHere))),
+                onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => DrawerExplorer(container: mapOwner(l.id)!, drawer: d, onShootHere: onShootHere))),
               )
             else if (l.kind != 'Drawer' && l.kind != 'Bin' && l.kind != 'Shelf')
               Material(

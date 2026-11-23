@@ -56,6 +56,13 @@ with open("android/app/proguard-rules.pro", "a") as f:
     f.write(rules)
 print("proguard rules added")
 
+# Subject cutout (background removal) needs Android 7.0+ (API 24).
+if os.path.exists(GRADLE_KTS):
+    g = open(GRADLE_KTS).read()
+    g, n = re.subn(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = 24", g)
+    print("minSdk set to 24" if n else "minSdk line not found (leaving as is)")
+    open(GRADLE_KTS, "w").write(g)
+
 # Signing: use the permanent key from CI secrets when present.
 keystore = os.environ.get("KEYSTORE_PATH")
 if keystore and os.path.exists(keystore):

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'cutout.dart';
+
 import 'models.dart';
 import 'parse.dart';
 import 'store.dart';
@@ -79,7 +81,7 @@ class _ReviewCardState extends State<_ReviewCard> {
   void _add() {
     final r = widget.r;
     final name = _name.text.trim().isEmpty ? 'Unnamed tool' : _name.text.trim();
-    store.addItem(Item(
+    final added = store.addItem(Item(
       id: store.newId('i'),
       name: name,
       cat: r.cat,
@@ -91,6 +93,7 @@ class _ReviewCardState extends State<_ReviewCard> {
       source: r.heard.isNotEmpty ? 'Filled in from what you said' : 'Confirmed by you in Review',
       notes: r.heard.isNotEmpty ? 'You said: “${r.heard}”' : '',
     ));
+    ensureCutout(added);
     store.review.remove(r);
     store.changed();
     toast(context, 'Added to ${store.short(r.loc)}');

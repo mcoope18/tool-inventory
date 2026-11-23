@@ -60,6 +60,7 @@ class Item {
   List<Spec> specs;
   List<String> aliases;
   List<String> photos; // file paths inside the app folder
+  String? cutout; // first photo with the background removed (PNG)
   String source;
   String notes;
   int hits; // times opened from search
@@ -79,6 +80,7 @@ class Item {
     this.notes = '',
     this.hits = 0,
     this.lowAt,
+    this.cutout,
     DateTime? added,
   })  : specs = specs ?? [],
         aliases = aliases ?? [],
@@ -98,6 +100,7 @@ class Item {
         'notes': notes,
         'hits': hits,
         'lowAt': lowAt,
+        'cutout': cutout,
         'added': added.toIso8601String(),
       };
 
@@ -114,6 +117,7 @@ class Item {
         notes: j['notes'] ?? '',
         hits: (j['hits'] ?? 0) as int,
         lowAt: j['lowAt'] as int?,
+        cutout: j['cutout'] as String?,
         added: DateTime.tryParse(j['added'] ?? '') ?? DateTime.now(),
       );
 

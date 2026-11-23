@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import 'explorer.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -159,7 +161,12 @@ class _ItemScreenState extends State<ItemScreen> {
             ),
             if (mapOwner(it.loc) != null && mapOwner(it.loc)!.id != it.loc) ...[
               const SizedBox(height: 8),
-              StorageMapView(container: mapOwner(it.loc)!, litId: it.loc, caption: 'It’s in ${store.short(it.loc)}'),
+              StorageMapView(
+                container: mapOwner(it.loc)!,
+                litId: it.loc,
+                caption: 'It’s in ${store.short(it.loc)} · tap to open',
+                onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => DrawerExplorer(container: mapOwner(it.loc)!, drawer: d, focusItemId: d.id == it.loc ? it.id : null, onShootHere: () {}))),
+              ),
             ],
             const SizedBox(height: 10),
             Container(

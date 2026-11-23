@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import 'cutout.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -53,6 +55,7 @@ class CaptureQueue extends ChangeNotifier {
         s.status = 'added';
         s.label = 'Added';
         s.itemId = it.id;
+        ensureCutout(it);
       } else {
         store.review.add(ReviewEntry(
           id: store.newId('r'),
