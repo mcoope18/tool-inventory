@@ -122,6 +122,58 @@ StraightenResult _straightenWork(Map<String, dynamic> args) {
   return StraightenResult(img.encodeJpg(out, quality: 88), W, H, rects);
 }
 
+/// Names drawers from their outlines: full-width ones Top/Bottom n, the rest
+/// by stack (Left/Middle/Right n, counted from the top of that stack).
+final kAutoDrawerName = RegExp(r'^(Top|Bottom|Left|Middle|Right|Drawer|Column \d+) \d+$');
+
+List<String> drawerNames(List<List<double>> rects) {
+  // Full-width drawers are named on their own; the rest by stack.
+  bool isFull(List<double> r) => r[2] - r[0] > 0.8;
+  final stacked = rects.where((r) => !isFull(r)).toList();
+  final colStarts = <double>[];
+  for (final r in stacked) {
+    if (!colStarts.any((x) => (x - r[0]).abs() < 0.05)) colStarts.add(r[0]);
+  }
+  colStarts.sort();
+  final stackTop = stacked.isEmpty ? 1.0 : stacked.map((r) => r[1]).reduce(math.min);
+  String nameFor(int i, List<double> r) {
+    if (isFull(r)) {
+      final above = r[1] < stackTop;
+      final same = rects.where((q) => isFull(q) && (q[1] < stackTop) == above).toList()..sort((a, b) => a[1].compareTo(b[1]));
+      return '${above ? 'Top' : 'Bottom'} ${same.indexOf(r) + 1}';
+    }
+    final ci = colStarts.indexWhere((x) => (x - r[0]).abs() < 0.05);
+    final inCol = stacked.where((q) => (q[0] - colStarts[ci]).abs() < 0.05).toList()..sort((a, b) => a[1].compareTo(b[1]));
+    final n = inCol.indexOf(r) + 1;
+    if (colStarts.length <= 1) return 'Drawer $n';
+    final label = colStarts.length == 2
+        ? ['Left', 'Right'][ci]
+        : colStarts.length == 3
+            ? ['Left', 'Middle', 'Right'][ci]
+            : 'Column ${ci + 1}';
+    return '$label $n';
+  }
+
+  return [for (var i = 0; i < rects.length; i++) nameFor(i, rects[i])];
+}
+
+/// One-time tidy-up: renames drawers that were auto-named by an older version.
+void fixDrawerNames() {
+  var changed = false;
+  for (final c in store.locs.where((l) => l.mapPhoto != null).toList()) {
+    final kids = store.children(c.id).where((k) => k.poly != null && k.poly!.length == 8).toList();
+    if (kids.isEmpty || !kids.every((k) => kAutoDrawerName.hasMatch(k.name))) continue;
+    final names = drawerNames([for (final k in kids) [k.poly![0], k.poly![1], k.poly![2], k.poly![5]]]);
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].name != names[i]) {
+        kids[i].name = names[i];
+        changed = true;
+      }
+    }
+  }
+  if (changed) store.changed();
+}
+
 /// Lines drawers up the way they really are: every drawer in a stack shares
 /// the stack's left and right edges, neighbours share one seam (no gaps or
 /// overlaps), and each seam sits on the thin dark gap between drawer fronts
@@ -789,36 +841,17 @@ class _EditScreenState extends State<_EditScreen> {
     final rects = _sorted();
     final c = widget.container;
     final existing = store.children(c.id);
-    // Name by column when there are several columns.
-    final colStarts = <double>[];
-    for (final r in rects) {
-      if (!colStarts.any((x) => (x - r[0]).abs() < 0.05)) colStarts.add(r[0]);
-    }
-    colStarts.sort();
-    String nameFor(int i, List<double> r) {
-      if (colStarts.length <= 1) return 'Drawer ${i + 1}';
-      final ci = colStarts.indexWhere((x) => (x - r[0]).abs() < 0.05);
-      final inCol = rects.where((q) => (q[0] - r[0]).abs() < 0.05).toList()..sort((a, b) => a[1].compareTo(b[1]));
-      final n = inCol.indexOf(r) + 1;
-      final full = r[2] - r[0] > 0.8;
-      if (full) return 'Top ${rects.where((q) => q[2] - q[0] > 0.8 && q[1] <= r[1]).length}';
-      final label = colStarts.length == 2
-          ? ['Left', 'Right'][ci]
-          : colStarts.length == 3
-              ? ['Left', 'Middle', 'Right'][ci]
-              : 'Column ${ci + 1}';
-      return '$label $n';
-    }
-
+    final names = drawerNames(rects);
     var reuse = 0;
     for (var i = 0; i < rects.length; i++) {
       final r = rects[i];
       final poly = [r[0], r[1], r[2], r[1], r[2], r[3], r[0], r[3]];
       if (reuse < existing.length) {
         existing[reuse].poly = poly;
+        if (kAutoDrawerName.hasMatch(existing[reuse].name)) existing[reuse].name = names[i];
         reuse++;
       } else {
-        store.locs.add(Loc(id: store.newId('l'), name: nameFor(i, r), parent: c.id, kind: 'Drawer', poly: poly));
+        store.locs.add(Loc(id: store.newId('l'), name: names[i], parent: c.id, kind: 'Drawer', poly: poly));
       }
     }
     c.mapPhoto = widget.mapPath;

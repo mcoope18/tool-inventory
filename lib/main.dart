@@ -6,6 +6,7 @@ import 'home.dart';
 import 'item.dart';
 import 'models.dart';
 import 'review.dart';
+import 'storage_map.dart';
 import 'store.dart';
 import 'sync.dart';
 import 'theme.dart';
@@ -15,7 +16,12 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   store.load();
   account.init();
+  var tidied = false;
   void maybeSync() {
+    if (store.loaded && !tidied) {
+      tidied = true;
+      Future.microtask(fixDrawerNames);
+    }
     if (store.loaded && account.signedIn && !sync.on && !sync.busy) sync.start();
     if (!account.signedIn && sync.on) sync.stop();
   }
