@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'account.dart';
 import 'capture.dart';
 import 'home.dart';
 import 'item.dart';
@@ -12,6 +13,7 @@ import 'widgets.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   store.load();
+  account.init();
   runApp(const ToolInventoryApp());
 }
 

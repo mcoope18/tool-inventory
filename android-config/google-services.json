@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "678024878394",
+    "project_id": "revlex-inventory",
+    "storage_bucket": "revlex-inventory.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:678024878394:android:9335b44f0eec75a41a5803",
+        "android_client_info": {
+          "package_name": "com.mcoope18.tool_inventory"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "678024878394-b687spubbecmpsuuauoce4bv1rq8ff9n.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mcoope18.tool_inventory",
+            "certificate_hash": "2f6ecf10d32d33abb7eb83284576eb4191437a14"
+          }
+        },
+        {
+          "client_id": "678024878394-s1cfltev8lltggl9iphu77hvsjt2eslg.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASIZxtni-e4F6wWn_hUuYaUokh2AbLAt8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "678024878394-s1cfltev8lltggl9iphu77hvsjt2eslg.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

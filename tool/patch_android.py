@@ -63,6 +63,25 @@ if os.path.exists(GRADLE_KTS):
     print("minSdk set to 24" if n else "minSdk line not found (leaving as is)")
     open(GRADLE_KTS, "w").write(g)
 
+# Firebase: config file + Google services Gradle plugin.
+import shutil
+if os.path.exists("android-config/google-services.json"):
+    shutil.copy("android-config/google-services.json", "android/app/google-services.json")
+    settings = "android/settings.gradle.kts"
+    st = open(settings).read()
+    if "com.google.gms.google-services" not in st:
+        st, n = re.subn(r"(plugins\s*\{)", r'\1\n    id("com.google.gms.google-services") version "4.6.0" apply false', st, count=1)
+        if n != 1:
+            die("could not find plugins { in settings.gradle.kts")
+        open(settings, "w").write(st)
+    g = open(GRADLE_KTS).read()
+    if "com.google.gms.google-services" not in g:
+        g, n = re.subn(r"(plugins\s*\{)", r'\1\n    id("com.google.gms.google-services")', g, count=1)
+        if n != 1:
+            die("could not find plugins { in app build.gradle.kts")
+        open(GRADLE_KTS, "w").write(g)
+    print("firebase configured")
+
 # Signing: use the permanent key from CI secrets when present.
 keystore = os.environ.get("KEYSTORE_PATH")
 if keystore and os.path.exists(keystore):

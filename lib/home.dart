@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'explorer.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'account.dart';
 import 'location.dart';
 import 'models.dart';
 import 'parse.dart';
@@ -80,7 +81,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: store,
+      listenable: Listenable.merge([store, account]),
       builder: (context, _) {
         final results = _buy ? <Item>[] : store.search(_q.text);
         final searching = !_buy && _q.text.trim().isNotEmpty;
@@ -94,6 +95,45 @@ class _HomeScreenState extends State<HomeScreen> {
               const Spacer(),
               IconButton(onPressed: _export, tooltip: 'Export spreadsheet', icon: const Icon(Icons.ios_share_rounded, color: kAmber)),
             ]),
+            if (account.ready && !account.signedIn)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(color: kSurface, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF3A2F1A))),
+                child: Row(children: [
+                  const Icon(Icons.auto_awesome_rounded, color: kAmber),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text('Sign in to turn on AI drawer finding. Sharing with Alex comes next.', style: TextStyle(fontSize: 13, height: 1.35)),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    style: amberBtn(),
+                    onPressed: () async {
+                      final ok = await account.signIn();
+                      if (!context.mounted) return;
+                      if (ok) {
+                        final k = await account.aiKey();
+                        if (!context.mounted) return;
+                        toast(context, k != null ? 'Signed in. AI is on.' : (account.error ?? 'Signed in, but AI isn’t available for this account.'));
+                      } else {
+                        toast(context, account.error ?? 'Sign-in didn’t finish.');
+                      }
+                    },
+                    child: const Text('Sign in'),
+                  ),
+                ]),
+              ),
+            if (account.signedIn)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(children: [
+                  const Icon(Icons.verified_user_outlined, size: 14, color: kBlue),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(account.email ?? '', style: const TextStyle(color: kText2, fontSize: 12))),
+                  TextButton(onPressed: account.signOut, child: const Text('Sign out', style: TextStyle(fontSize: 12))),
+                ]),
+              ),
             _Question(text: 'What did you lose now?', on: !_buy, onTap: () => setState(() => _buy = false)),
             _Question(text: 'What did you buy now?', on: _buy, onTap: () => setState(() => _buy = true)),
             const SizedBox(height: 10),

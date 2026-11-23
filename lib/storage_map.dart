@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
+import 'account.dart';
+import 'ai.dart';
 import 'models.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -61,8 +63,8 @@ class StraightenResult {
 }
 
 /// Runs in a background isolate. args: path, corners (normalized TL,TR,BR,BL).
-Future<StraightenResult> straightenAndDetect(String path, List<Offset> cornersNorm) {
-  return compute(_straightenWork, {'path': path, 'c': cornersNorm.expand((o) => [o.dx, o.dy]).toList()});
+Future<StraightenResult> straightenAndDetect(String path, List<Offset> cornersNorm, {List<List<double>>? quads}) {
+  return compute(_straightenWork, {'path': path, 'c': cornersNorm.expand((o) => [o.dx, o.dy]).toList(), 'quads': quads});
 }
 
 StraightenResult _straightenWork(Map<String, dynamic> args) {
@@ -91,8 +93,99 @@ StraightenResult _straightenWork(Map<String, dynamic> args) {
       lum[y * W + x] = 0.299 * px.r + 0.587 * px.g + 0.114 * px.b;
     }
   }
-  final rects = _detect(lum, W, H);
+  List<List<double>> rects;
+  final quads = args['quads'] as List?;
+  if (quads != null && quads.isNotEmpty) {
+    // AI gave drawer outlines in the photo: carry them into the straightened
+    // view, then snap each edge to the strongest seam/handle line nearby.
+    final toRect = _homography(src, [Offset.zero, Offset(W.toDouble(), 0), Offset(W.toDouble(), H.toDouble()), Offset(0, H.toDouble())]);
+    Offset map(double nx, double ny) {
+      final x = nx * photo.width, y = ny * photo.height;
+      final den = toRect[6] * x + toRect[7] * y + 1;
+      return Offset((toRect[0] * x + toRect[1] * y + toRect[2]) / den, (toRect[3] * x + toRect[4] * y + toRect[5]) / den);
+    }
+    rects = [];
+    for (final q in quads) {
+      final v = (q as List).cast<double>();
+      final pts = [for (var i = 0; i < 4; i++) map(v[2 * i], v[2 * i + 1])];
+      var x0 = pts.map((p) => p.dx).reduce(math.min), x1 = pts.map((p) => p.dx).reduce(math.max);
+      var y0 = pts.map((p) => p.dy).reduce(math.min), y1 = pts.map((p) => p.dy).reduce(math.max);
+      x0 = x0.clamp(0, W - 2).toDouble();
+      x1 = x1.clamp(x0 + 2, W.toDouble()).toDouble();
+      y0 = y0.clamp(0, H - 2).toDouble();
+      y1 = y1.clamp(y0 + 2, H.toDouble()).toDouble();
+      rects.add(_snapRect([x0, y0, x1, y1], lum, W, H));
+    }
+  } else {
+    rects = _detect(lum, W, H);
+  }
   return StraightenResult(img.encodeJpg(out, quality: 88), W, H, rects);
+}
+
+/// Moves each edge of a rectangle to the strongest straight line within a
+/// small window, so drawer outlines sit exactly on the seams.
+List<double> _snapRect(List<double> r, Float64List g, int W, int H) {
+  double at(int x, int y) => g[y.clamp(0, H - 1) * W + x.clamp(0, W - 1)];
+  final x0 = r[0].round(), y0 = r[1].round(), x1 = r[2].round(), y1 = r[3].round();
+  final w = math.max(1, x1 - x0), h = math.max(1, y1 - y0);
+  int snapY(int y) {
+    final win = math.max(3, (H * 0.04).round());
+    final a = x0 + (w * 0.1).round(), b = x1 - (w * 0.1).round();
+    var best = y, bestS = -1.0, sum = 0.0, n = 0;
+    for (var yy = math.max(1, y - win); yy <= math.min(H - 2, y + win); yy++) {
+      var s = 0.0;
+      for (var x = a; x < b; x += 2) {
+        s += (at(x, yy + 1) - at(x, yy - 1)).abs();
+      }
+      sum += s;
+      n++;
+      if (s > bestS) {
+        bestS = s;
+        best = yy;
+      }
+    }
+    return (n > 0 && bestS > 1.3 * sum / n) ? best : y;
+  }
+
+  int snapX(int x) {
+    final win = math.max(3, (W * 0.025).round());
+    final a = y0 + (h * 0.15).round(), b = y1 - (h * 0.15).round();
+    var best = x, bestS = -1.0, sum = 0.0, n = 0;
+    for (var xx = math.max(1, x - win); xx <= math.min(W - 2, x + win); xx++) {
+      var s = 0.0;
+      for (var y = a; y < b; y++) {
+        s += (at(xx + 1, y) - at(xx - 1, y)).abs();
+      }
+      sum += s;
+      n++;
+      if (s > bestS) {
+        bestS = s;
+        best = xx;
+      }
+    }
+    return (n > 0 && bestS > 1.3 * sum / n) ? best : x;
+  }
+
+  var nx0 = snapX(x0), nx1 = snapX(x1), ny0 = snapY(y0), ny1 = snapY(y1);
+  if (nx1 - nx0 < w * 0.6) {
+    nx0 = x0;
+    nx1 = x1;
+  }
+  if (ny1 - ny0 < h * 0.5) {
+    ny0 = y0;
+    ny1 = y1;
+  }
+  return [nx0 / W, ny0 / H, nx1 / W, ny1 / H];
+}
+
+/// A smaller JPEG for the AI (max 1568 px on the long side), orientation fixed.
+Uint8List _smallJpg(String path) {
+  var im = img.bakeOrientation(img.decodeImage(File(path).readAsBytesSync())!);
+  final long = math.max(im.width, im.height);
+  if (long > 1568) {
+    im = im.width >= im.height ? img.copyResize(im, width: 1568) : img.copyResize(im, height: 1568);
+  }
+  return img.encodeJpg(im, quality: 85);
 }
 
 /// Finds column posts (strong vertical edges) and drawer handles/seams
@@ -202,7 +295,120 @@ double _sd(List<double> v, double m) => v.isEmpty ? 0 : math.sqrt(v.map((x) => (
 Future<void> startMapSetup(BuildContext context, Loc container) async {
   final x = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 92, maxWidth: 3000);
   if (x == null || !context.mounted) return;
-  await Navigator.push(context, MaterialPageRoute(builder: (_) => _CornerScreen(container: container, path: x.path)));
+  if (account.signedIn) {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => _AiMapScreen(container: container, path: x.path)));
+  } else {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => _CornerScreen(container: container, path: x.path)));
+  }
+}
+
+/// AI finds the front and every drawer; no corner dots.
+class _AiMapScreen extends StatefulWidget {
+  final Loc container;
+  final String path;
+  const _AiMapScreen({required this.container, required this.path});
+  @override
+  State<_AiMapScreen> createState() => _AiMapScreenState();
+}
+
+class _AiMapScreenState extends State<_AiMapScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _scan = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600))..repeat(reverse: true);
+  String _status = 'Finding the drawers…';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  @override
+  void dispose() {
+    _scan.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run() async {
+    setState(() {
+      _error = null;
+      _status = 'Finding the drawers…';
+    });
+    try {
+      final small = await compute(_smallJpg, widget.path);
+      final j = await askClaudeJson(jpg: small, prompt: kDrawerPrompt);
+      List<double> pt(dynamic p) => [(p[0] as num).toDouble().clamp(0.0, 1.0), (p[1] as num).toDouble().clamp(0.0, 1.0)];
+      final front = (j['front'] as List).map(pt).toList();
+      if (front.length != 4) throw AiError('AI didn’t find the front.');
+      final quads = <List<double>>[];
+      for (final d in (j['drawers'] as List? ?? [])) {
+        final q = (d['quad'] as List).map(pt).toList();
+        if (q.length == 4) quads.add([for (final p in q) ...p]);
+      }
+      if (quads.isEmpty) throw AiError('AI didn’t find any drawers.');
+      if (!mounted) return;
+      setState(() => _status = 'Straightening and lining up ${quads.length} drawers…');
+      final r = await straightenAndDetect(widget.path, [for (final p in front) Offset(p[0], p[1])], quads: quads);
+      final file = File('${store.photoDir.path}/${store.newId('map')}.jpg');
+      await file.writeAsBytes(r.jpg);
+      if (!mounted) return;
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => _EditScreen(container: widget.container, mapPath: file.path, aspect: r.width / r.height, rects: r.rects)),
+      );
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Mapping ${widget.container.name}')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          Expanded(
+            child: Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: Stack(children: [
+                  Image.file(File(widget.path), fit: BoxFit.contain),
+                  if (_error == null)
+                    Positioned.fill(
+                      child: AnimatedBuilder(
+                        animation: _scan,
+                        builder: (_, __) => Align(
+                          alignment: Alignment(0, -1 + 2 * _scan.value),
+                          child: Container(height: 3, decoration: BoxDecoration(color: kAmber, boxShadow: [BoxShadow(color: kAmber.withValues(alpha: 0.7), blurRadius: 16)])),
+                        ),
+                      ),
+                    ),
+                ]),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (_error == null)
+            Text(_status, style: const TextStyle(color: kAmber, fontWeight: FontWeight.w700, fontSize: 15))
+          else ...[
+            Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: kText2)),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: ghostBtn(),
+                  onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => _CornerScreen(container: widget.container, path: widget.path))),
+                  child: const Text('Mark corners myself'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: FilledButton(style: amberBtn(), onPressed: _run, child: const Text('Try again'))),
+            ]),
+          ],
+        ]),
+      ),
+    );
+  }
 }
 
 class _CornerScreen extends StatefulWidget {
