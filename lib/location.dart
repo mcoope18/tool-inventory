@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'capture.dart';
+import 'models.dart';
+import 'parse.dart';
 import 'storage_map.dart';
+import 'where.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -155,6 +158,43 @@ class LocationScreen extends StatelessWidget {
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationScreen(id: k.id, onShootHere: onShootHere))),
                   ),
               ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(
+                child: FilledButton.icon(
+                  style: amberBtn(),
+                  onPressed: () => sayToolHere(context, l, (said) {
+                    final p = parseVoice(said);
+                    return Item(
+                      id: store.newId('i'),
+                      name: p.name ?? said,
+                      cat: p.cat,
+                      qty: p.qty ?? 1,
+                      loc: l.id,
+                      specs: p.specs,
+                      aliases: p.aliases,
+                      source: 'Added by voice',
+                      notes: 'You said: “$said”',
+                    );
+                  }),
+                  icon: const Icon(Icons.mic_rounded),
+                  label: const Text('Say a tool'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: ghostBtn(),
+                  onPressed: () {
+                    captureQueue.setSaveTo(l.id);
+                    Navigator.popUntil(context, (r) => r.isFirst);
+                    onShootHere();
+                  },
+                  icon: const Icon(Icons.photo_camera_outlined, color: kAmber),
+                  label: const Text('Shoot tools'),
+                ),
+              ),
+            ]),
             const SizedBox(height: 16),
             Text(items.isEmpty ? 'NOTHING DIRECTLY IN HERE YET' : '${items.length} IN THIS SPOT', style: sectionLabel),
             const SizedBox(height: 8),

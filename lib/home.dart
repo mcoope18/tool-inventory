@@ -8,6 +8,7 @@ import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
+import 'where.dart';
 import 'widgets.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -170,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(children: [
                 const Text('LOCATIONS', style: sectionLabel),
                 const Spacer(),
-                TextButton.icon(onPressed: () => newLocationDialog(context), icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Add location')),
+                TextButton.icon(onPressed: () => addLocationFlow(context, onShootHere: widget.onGoCapture), icon: const Icon(Icons.add_rounded, size: 18), label: const Text('Add location')),
               ]),
               if (roots.isEmpty)
                 Container(
