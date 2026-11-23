@@ -206,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: BoxDecoration(color: kSurface, border: Border.all(color: kLine), borderRadius: BorderRadius.circular(16)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Thumb(cat: p.cat, size: 52),
+          ToolThumb(cat: p.cat, size: 52),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

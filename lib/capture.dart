@@ -178,7 +178,7 @@ class CaptureScreen extends StatelessWidget {
                         }
                       },
                       child: Column(children: [
-                        Thumb(photo: s.photo, cat: s.cat, size: 72),
+                        ToolThumb(photo: s.photo, cat: s.cat, size: 72),
                         const SizedBox(height: 4),
                         Text(s.label,
                             style: TextStyle(

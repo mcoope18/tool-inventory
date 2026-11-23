@@ -7,12 +7,12 @@ import 'store.dart';
 import 'theme.dart';
 
 /// Photo if there is one, otherwise a category icon.
-class Thumb extends StatelessWidget {
+class ToolThumb extends StatelessWidget {
   final String? photo;
   final String cat;
   final double size;
   final double radius;
-  const Thumb({super.key, this.photo, this.cat = 'other', this.size = 48, this.radius = 10});
+  const ToolThumb({super.key, this.photo, this.cat = 'other', this.size = 48, this.radius = 10});
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +78,7 @@ class ItemRow extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(children: [
-          Thumb(photo: item.photos.isNotEmpty ? item.photos.first : null, cat: item.cat),
+          ToolThumb(photo: item.photos.isNotEmpty ? item.photos.first : null, cat: item.cat),
           const SizedBox(width: 12),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

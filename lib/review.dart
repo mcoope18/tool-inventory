@@ -106,8 +106,8 @@ class _ReviewCardState extends State<_ReviewCard> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           GestureDetector(
-            onTap: () => showDialog(context: context, builder: (_) => Dialog(child: Thumb(photo: r.photo, size: 320, radius: 12))),
-            child: Thumb(photo: r.photo, cat: r.cat, size: 84, radius: 12),
+            onTap: () => showDialog(context: context, builder: (_) => Dialog(child: ToolThumb(photo: r.photo, size: 320, radius: 12))),
+            child: ToolThumb(photo: r.photo, cat: r.cat, size: 84, radius: 12),
           ),
           const SizedBox(width: 12),
           Expanded(

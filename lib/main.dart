@@ -136,7 +136,7 @@ class _PhotosScreenState extends State<PhotosScreen> {
                     GestureDetector(
                       onTap: () => Navigator.of(context).pushNamed('/item', arguments: it.id),
                       child: LayoutBuilder(
-                        builder: (_, c) => Thumb(photo: it.photos.isNotEmpty ? it.photos.first : null, cat: it.cat, size: c.maxWidth, radius: 6),
+                        builder: (_, c) => ToolThumb(photo: it.photos.isNotEmpty ? it.photos.first : null, cat: it.cat, size: c.maxWidth, radius: 6),
                       ),
                     ),
                 ],
