@@ -103,7 +103,7 @@ class Sync extends ChangeNotifier {
         // Doesn't exist yet (rules can't confirm membership): create it.
         await ws.set({'name': kWorkspaceName, 'members': kMembers, 'createdBy': account.email, 'createdAt': FieldValue.serverTimestamp()});
       }
-      on = true;
+      this.on = true;
       for (final coll in _colls) {
         _subs.add(_c(coll).snapshots().listen((qs) => _onRemote(coll, qs), onError: (e) {
           status = 'Sync paused: $e';
