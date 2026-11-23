@@ -33,6 +33,9 @@ class ToolInventoryApp extends StatelessWidget {
       title: 'Tool Inventory',
       debugShowCheckedModeBanner: false,
       theme: appTheme(),
+      // Keep every screen, sheet and button clear of Android's back/home/recents
+      // buttons and the gesture bar, in portrait and landscape.
+      builder: (context, child) => ColoredBox(color: kBg, child: SafeArea(top: false, child: child ?? const SizedBox())),
       home: const Shell(),
       onGenerateRoute: (s) {
         if (s.name == '/item') {

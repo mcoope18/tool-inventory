@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'buy.dart';
 import 'models.dart';
 import 'parse.dart';
+import 'understand.dart';
 import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
@@ -35,15 +36,32 @@ class _ItemScreenState extends State<ItemScreen> {
   bool _busy = false;
 
   Future<void> _tellMore(Item it) async {
-    final said = await listenSheet(context, title: 'Tell me more', hint: 'Model, serial, where you got it, what you paid, what you call it.');
+    final said = await listenSheet(context, title: 'Tell me more', hint: 'Model, serial, where you got it, what you paid, what you call it. Correct anything that\u2019s wrong.');
     if (said == null || said.isEmpty) return;
-    final p = parseVoice(said);
-    final (added, updated) = store.merge(p.specs, p.aliases, it.specs, it.aliases);
-    if (p.qty != null) it.qty = p.qty!;
-    it.notes = [if (it.notes.isNotEmpty) it.notes, 'You said: “$said”'].join('\n');
-    store.changed();
-    if (!mounted) return;
-    toast(context, added + updated == 0 ? 'Saved your note. Nothing new to fill in.' : '$added added, $updated updated from what you said.');
+    setState(() => _busy = true);
+    try {
+      final label = it.notes.split('\n').where((l) => l.startsWith('Label: ')).map((l) => l.substring(7)).join(' ');
+      final e = await understandVoice(said: said, name: it.name, cat: it.cat, qty: it.qty, specs: it.specs, aliases: it.aliases, labelText: label);
+      var n = applySpecs(e, it.specs, it.aliases);
+      if (e.name != null && e.name != it.name) {
+        it.name = e.name!;
+        n++;
+      }
+      if (e.cat != null && e.cat != it.cat) {
+        it.cat = e.cat!;
+        n++;
+      }
+      if (e.qty != null && e.qty != it.qty) {
+        it.qty = e.qty!;
+        n++;
+      }
+      it.notes = [if (it.notes.isNotEmpty) it.notes, 'You said: \u201c$said\u201d'].join('\n');
+      store.changed();
+      if (!mounted) return;
+      toast(context, n == 0 ? 'Saved your note. Nothing to change.' : 'Updated $n ${n == 1 ? 'thing' : 'things'} from what you said.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _nameplate(Item it) async {
@@ -217,7 +235,7 @@ class _ItemScreenState extends State<ItemScreen> {
                 Text(missing.isEmpty ? 'You can still add more any time.' : 'Still missing: ${missing.join(', ')}', style: const TextStyle(color: kText2, fontSize: 12)),
                 const SizedBox(height: 12),
                 if (_busy)
-                  const Padding(padding: EdgeInsets.all(8), child: Center(child: Text('Reading the nameplate…', style: TextStyle(color: kBlue, fontWeight: FontWeight.w700))))
+                  const Padding(padding: EdgeInsets.all(8), child: Center(child: Text('Working on it…', style: TextStyle(color: kBlue, fontWeight: FontWeight.w700))))
                 else
                   Row(children: [
                     Expanded(child: FilledButton.icon(onPressed: () => _tellMore(it), style: amberBtn(), icon: const Icon(Icons.mic_rounded), label: const Text('Tell me more'))),

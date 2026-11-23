@@ -10,6 +10,7 @@ class Parsed {
   final List<Spec> specs = [];
   final List<String> aliases = [];
   bool confident = false;
+  bool nameIsGuess = false; // name is just the first words said, not a recognized tool
   String reason = '';
 }
 
@@ -172,7 +173,7 @@ Parsed _extract(String raw) {
   String? size;
   final frac = RegExp(r'(\d+-)?(\d{1,2})/(\d{1,2})\s*(?:"|”|″|in\b|inch)?').firstMatch(t);
   final dec = RegExp(r'(?<![\d/])(0?\.\d{2,4})\s*(?:"|in\b|inch)?').firstMatch(t);
-  final dia = RegExp(r'(?:Ø|ø|⌀|Φ|φ|\bdia\.?|\bd\s*=)\s*(\d+(?:[.,]\d+)?)\s*(mm|"|in\b|inch)?', caseSensitive: false).firstMatch(t);
+  final dia = RegExp(r'(?:Ø|ø|⌀|Φ|φ|\bdia\.?|\bd\s*=|\b[oO](?=\s+\d+[.,]\d{3}\b))\s*(\d+(?:[.,]\d+)?)\s*(mm|"|in\b|inch)?', caseSensitive: false).firstMatch(t);
   final mm = RegExp(r'(\d+(?:[.,]\d+)?)\s*mm\b', caseSensitive: false).firstMatch(t);
   final thread = RegExp(r'\b(#?\d{1,2}-\d{2}|M\d{1,2}(?:\s*x\s*\d(?:\.\d+)?)?)\b', caseSensitive: false).firstMatch(t);
   if (dia != null) {
@@ -249,8 +250,10 @@ Parsed _extract(String raw) {
       break;
     }
   }
-  final din = RegExp(r'\b(DIN|ISO|ANSI)\s*(\d{3,5}[A-Z]?)', caseSensitive: false).firstMatch(t);
-  if (din != null) p.specs.add(Spec('Standard', '${din.group(1)!.toUpperCase()} ${din.group(2)!.toUpperCase()}'));
+  final din = RegExp(r'\b(D\s?I\s?N|I\s?S\s?O|ANSI)\s*-?\s*(\d{3,5}[A-Z]?)', caseSensitive: false).firstMatch(t);
+  if (din != null) {
+    p.specs.add(Spec('Standard', '${din.group(1)!.replaceAll(' ', '').toUpperCase()} ${din.group(2)!.replaceAll(' ', '').toUpperCase()}'));
+  }
   if (part == null) {
     final no = RegExp(r'(?:N[ºo°]|Nr\.?|Art\.?-?\s*Nr\.?|Cat\.?\s*#)\s*([0-9][0-9\-\.\s]{3,18}[0-9])', caseSensitive: false).firstMatch(t);
     if (no != null) p.specs.add(Spec('Part number', no.group(1)!.replaceAll(RegExp(r'\s+'), '')));
@@ -328,7 +331,10 @@ Parsed parseVoice(String said) {
   if (p.name == null) {
     var first = said.split(RegExp(r'[,.;]|\b(?:i have|i got|i call|we call|call it|bought)\b', caseSensitive: false)).first.trim();
     first = first.replaceFirst(RegExp(r"^(?:it's|its|this is|that's|thats|that is|it is)\s+(?:an?\s+|the\s+)?", caseSensitive: false), '');
-    if (first.length >= 3) p.name = _cap(first);
+    if (first.length >= 3) {
+      p.name = _cap(first);
+      p.nameIsGuess = true;
+    }
   }
   return p;
 }

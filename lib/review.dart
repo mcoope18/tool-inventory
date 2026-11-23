@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'cutout.dart';
 
 import 'models.dart';
-import 'parse.dart';
+import 'understand.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
@@ -60,22 +60,27 @@ class _ReviewCardState extends State<_ReviewCard> {
     super.dispose();
   }
 
+  bool _thinking = false;
+
   Future<void> _talk() async {
     final r = widget.r;
-    final said = await listenSheet(context, hint: 'Size, specs, how many, what you call it.');
+    final said = await listenSheet(context, hint: 'Size, specs, how many, what you call it. Correct anything that\u2019s wrong.');
     if (said == null || said.isEmpty) return;
-    final p = parseVoice(said);
-    // Voice adds to and corrects what the label gave us; it never wipes it.
-    if (p.name != null) {
-      r.guess = p.name!;
-      _name.text = p.name!;
+    setState(() => _thinking = true);
+    try {
+      final e = await understandVoice(said: said, name: _name.text, cat: r.cat, qty: r.qty, specs: r.specs, aliases: r.aliases, labelText: r.ocrText);
+      if (e.name != null) {
+        r.guess = e.name!;
+        _name.text = e.name!;
+      }
+      if (e.cat != null) r.cat = e.cat!;
+      if (e.qty != null) r.qty = e.qty!;
+      applySpecs(e, r.specs, r.aliases);
+      r.heard = r.heard.isEmpty ? said : '${r.heard} \u00b7 $said';
+      store.changed();
+    } finally {
+      if (mounted) setState(() => _thinking = false);
     }
-    if (p.cat != 'other') r.cat = p.cat;
-    if (p.qty != null) r.qty = p.qty!;
-    store.merge(p.specs, p.aliases, r.specs, r.aliases);
-    r.heard = said;
-    store.changed();
-    setState(() {});
   }
 
   void _add() {
@@ -91,7 +96,7 @@ class _ReviewCardState extends State<_ReviewCard> {
       aliases: r.aliases,
       photos: [r.photo],
       source: r.heard.isNotEmpty ? 'Filled in from what you said' : 'Confirmed by you in Review',
-      notes: r.heard.isNotEmpty ? 'You said: “${r.heard}”' : '',
+      notes: [if (r.ocrText.isNotEmpty) 'Label: ${r.ocrText.replaceAll('\n', ' · ')}', if (r.heard.isNotEmpty) 'You said: “${r.heard}”'].join('\n'),
     ));
     ensureCutout(added);
     store.review.remove(r);
@@ -175,10 +180,10 @@ class _ReviewCardState extends State<_ReviewCard> {
         ],
         const SizedBox(height: 12),
         FilledButton.icon(
-          onPressed: _talk,
+          onPressed: _thinking ? null : _talk,
           style: filled ? FilledButton.styleFrom(backgroundColor: kCard, foregroundColor: kAmber, minimumSize: const Size(44, 48)) : amberBtn(),
-          icon: const Icon(Icons.mic_rounded),
-          label: Text(filled ? 'Say more' : 'Tell me about it'),
+          icon: _thinking ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: kAmber)) : const Icon(Icons.mic_rounded),
+          label: Text(_thinking ? 'Updating…' : (filled ? 'Say more' : 'Tell me about it')),
         ),
         const SizedBox(height: 10),
         Row(children: [

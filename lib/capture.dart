@@ -51,6 +51,7 @@ class CaptureQueue extends ChangeNotifier {
           specs: p.specs,
           photos: [kept],
           source: 'Read from the label on the phone',
+          notes: res.text.trim().isEmpty ? '' : 'Label: ${res.text.replaceAll('\n', ' · ')}',
         ));
         s.status = 'added';
         s.label = 'Added';

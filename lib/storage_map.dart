@@ -104,56 +104,122 @@ StraightenResult _straightenWork(Map<String, dynamic> args) {
       final den = toRect[6] * x + toRect[7] * y + 1;
       return Offset((toRect[0] * x + toRect[1] * y + toRect[2]) / den, (toRect[3] * x + toRect[4] * y + toRect[5]) / den);
     }
-    rects = [];
+    final boxes = <List<double>>[];
     for (final q in quads) {
       final v = (q as List).cast<double>();
       final pts = [for (var i = 0; i < 4; i++) map(v[2 * i], v[2 * i + 1])];
-      var x0 = pts.map((p) => p.dx).reduce(math.min), x1 = pts.map((p) => p.dx).reduce(math.max);
-      var y0 = pts.map((p) => p.dy).reduce(math.min), y1 = pts.map((p) => p.dy).reduce(math.max);
-      x0 = x0.clamp(0, W - 2).toDouble();
-      x1 = x1.clamp(x0 + 2, W.toDouble()).toDouble();
-      y0 = y0.clamp(0, H - 2).toDouble();
-      y1 = y1.clamp(y0 + 2, H.toDouble()).toDouble();
-      rects.add(_snapRect([x0, y0, x1, y1], lum, W, H));
+      boxes.add([
+        pts.map((p) => p.dx).reduce(math.min) / W,
+        pts.map((p) => p.dy).reduce(math.min) / H,
+        pts.map((p) => p.dx).reduce(math.max) / W,
+        pts.map((p) => p.dy).reduce(math.max) / H,
+      ]);
     }
+    rects = _regularize(boxes, lum, W, H);
   } else {
     rects = _detect(lum, W, H);
   }
   return StraightenResult(img.encodeJpg(out, quality: 88), W, H, rects);
 }
 
-/// Moves each edge of a rectangle to the strongest straight line within a
-/// small window, so drawer outlines sit exactly on the seams.
-List<double> _snapRect(List<double> r, Float64List g, int W, int H) {
+/// Lines drawers up the way they really are: every drawer in a stack shares
+/// the stack's left and right edges, neighbours share one seam (no gaps or
+/// overlaps), and each seam sits on the thin dark gap between drawer fronts
+/// rather than on a handle. Input and output are normalized [x0,y0,x1,y1].
+List<List<double>> _regularize(List<List<double>> boxes, Float64List g, int W, int H) {
   double at(int x, int y) => g[y.clamp(0, H - 1) * W + x.clamp(0, W - 1)];
-  final x0 = r[0].round(), y0 = r[1].round(), x1 = r[2].round(), y1 = r[3].round();
-  final w = math.max(1, x1 - x0), h = math.max(1, y1 - y0);
-  int snapY(int y) {
-    final win = math.max(3, (H * 0.04).round());
-    final a = x0 + (w * 0.1).round(), b = x1 - (w * 0.1).round();
-    var best = y, bestS = -1.0, sum = 0.0, n = 0;
-    for (var yy = math.max(1, y - win); yy <= math.min(H - 2, y + win); yy++) {
-      var s = 0.0;
-      for (var x = a; x < b; x += 2) {
-        s += (at(x, yy + 1) - at(x, yy - 1)).abs();
+  final rs = <List<double>>[
+    for (final b in boxes)
+      if (b[2] - b[0] > 0.02 && b[3] - b[1] > 0.01)
+        [b[0].clamp(0.0, 1.0) * W, b[1].clamp(0.0, 1.0) * H, b[2].clamp(0.0, 1.0) * W, b[3].clamp(0.0, 1.0) * H]
+  ];
+  if (rs.isEmpty) return [];
+  double med(List<double> v) {
+    final l = [...v]..sort();
+    return l[l.length ~/ 2];
+  }
+
+  // 1. Group into stacks by horizontal overlap.
+  rs.sort((a, b) => (a[0] + a[2]).compareTo(b[0] + b[2]));
+  final cols = <List<List<double>>>[];
+  for (final r in rs) {
+    List<List<double>>? hit;
+    for (final c in cols) {
+      final c0 = med(c.map((e) => e[0]).toList()), c1 = med(c.map((e) => e[2]).toList());
+      final ov = math.min(c1, r[2]) - math.max(c0, r[0]);
+      if (ov > 0.6 * math.max(c1 - c0, r[2] - r[0])) {
+        hit = c;
+        break;
       }
-      sum += s;
-      n++;
-      if (s > bestS) {
-        bestS = s;
+    }
+    if (hit != null) {
+      hit.add(r);
+    } else {
+      cols.add([r]);
+    }
+  }
+
+  // Thin dark line score of row y across [a,b): darker than rows k above and below.
+  final prof = <int, List<double>>{};
+  List<double> profile(int a, int b) => prof.putIfAbsent(a * 100000 + b, () {
+        final p = List<double>.filled(H, 0);
+        for (var y = 0; y < H; y++) {
+          var s = 0.0, n = 0;
+          for (var x = a; x < b; x += 2) {
+            s += at(x, y);
+            n++;
+          }
+          p[y] = s / math.max(1, n);
+        }
+        return p;
+      });
+  final k1 = math.max(2, (H * 0.006).round()), k2 = k1 * 2;
+  double lineScore(List<double> p, int y) {
+    double s(int k) => (p[(y - k).clamp(0, H - 1)] + p[(y + k).clamp(0, H - 1)]) / 2 - p[y];
+    return math.max(s(k1), s(k2));
+  }
+
+  // Finds the seam near y: the thinnest, darkest line; failing that the
+  // strongest edge; failing that, y itself.
+  double seamNear(double y, int win, int a, int b) {
+    final p = profile(a, b);
+    final lo = math.max(1, (y - win).round()), hi = math.min(H - 2, (y + win).round());
+    if (hi <= lo) return y;
+    var best = y.round(), bestS = -1e9, sum = 0.0, n = 0;
+    for (var yy = lo; yy <= hi; yy++) {
+      final sc = lineScore(p, yy) - 0.15 * (yy - y).abs(); // prefer close to the AI's guess
+      if (sc > 0) {
+        sum += sc;
+        n++;
+      }
+      if (sc > bestS) {
+        bestS = sc;
         best = yy;
       }
     }
-    return (n > 0 && bestS > 1.3 * sum / n) ? best : y;
+    final mean = n > 0 ? sum / n : 0.0;
+    if (bestS > 5 && bestS > 1.6 * mean) return best.toDouble();
+    // Edge fallback (outer top/bottom of a stack often meet the frame, not a gap).
+    var eb = y.round(), es = -1.0, esum = 0.0, en = 0;
+    for (var yy = lo; yy <= hi; yy++) {
+      final e = (p[(yy + 1).clamp(0, H - 1)] - p[(yy - 1).clamp(0, H - 1)]).abs();
+      esum += e;
+      en++;
+      if (e > es) {
+        es = e;
+        eb = yy;
+      }
+    }
+    return (en > 0 && es > 2.0 * esum / en && es > 6) ? eb.toDouble() : y;
   }
 
-  int snapX(int x) {
-    final win = math.max(3, (W * 0.025).round());
-    final a = y0 + (h * 0.15).round(), b = y1 - (h * 0.15).round();
-    var best = x, bestS = -1.0, sum = 0.0, n = 0;
-    for (var xx = math.max(1, x - win); xx <= math.min(W - 2, x + win); xx++) {
+  double sideNear(double x, int y0, int y1) {
+    final win = math.max(3, (W * 0.015).round());
+    final a = y0 + ((y1 - y0) * 0.1).round(), b = y1 - ((y1 - y0) * 0.1).round();
+    var best = x.round(), bestS = -1.0, sum = 0.0, n = 0;
+    for (var xx = math.max(1, x.round() - win); xx <= math.min(W - 2, x.round() + win); xx++) {
       var s = 0.0;
-      for (var y = a; y < b; y++) {
+      for (var y = a; y < b; y += 2) {
         s += (at(xx + 1, y) - at(xx - 1, y)).abs();
       }
       sum += s;
@@ -163,19 +229,127 @@ List<double> _snapRect(List<double> r, Float64List g, int W, int H) {
         best = xx;
       }
     }
-    return (n > 0 && bestS > 1.3 * sum / n) ? best : x;
+    return (n > 0 && bestS > 1.5 * sum / n) ? best.toDouble() : x;
   }
 
-  var nx0 = snapX(x0), nx1 = snapX(x1), ny0 = snapY(y0), ny1 = snapY(y1);
-  if (nx1 - nx0 < w * 0.6) {
-    nx0 = x0;
-    nx1 = x1;
+  // 2. Per stack: shared sides, shared seams.
+  final stacks = <({double x0, double x1, List<double> seams})>[];
+  for (final c in cols) {
+    c.sort((a, b) => (a[1] + a[3]).compareTo(b[1] + b[3]));
+    // Drop near-duplicates (two boxes for one drawer).
+    final u = <List<double>>[];
+    for (final r in c) {
+      if (u.isNotEmpty) {
+        final l = u.last;
+        final ov = math.min(l[3], r[3]) - math.max(l[1], r[1]);
+        if (ov > 0.6 * math.min(l[3] - l[1], r[3] - r[1])) {
+          l[1] = math.min(l[1], r[1]);
+          l[3] = math.max(l[3], r[3]);
+          continue;
+        }
+      }
+      u.add([...r]);
+    }
+    final yTop = u.first[1].round(), yBot = u.last[3].round();
+    var x0 = sideNear(med(u.map((e) => e[0]).toList()), yTop, yBot);
+    var x1 = sideNear(med(u.map((e) => e[2]).toList()), yTop, yBot);
+    if (x1 - x0 < 0.6 * (med(u.map((e) => e[2]).toList()) - med(u.map((e) => e[0]).toList()))) {
+      x0 = med(u.map((e) => e[0]).toList());
+      x1 = med(u.map((e) => e[2]).toList());
+    }
+    final a = (x0 + (x1 - x0) * 0.1).round(), b = (x1 - (x1 - x0) * 0.1).round();
+    final hs = u.map((e) => e[3] - e[1]).toList();
+    final seams = <double>[u.first[1]];
+    for (var i = 0; i + 1 < u.length; i++) {
+      final gap = u[i + 1][1] - u[i][3];
+      // A big gap means a drawer the AI missed; keep both edges.
+      if (gap > 0.5 * math.min(hs[i], hs[i + 1])) {
+        seams.add(u[i][3]);
+        seams.add(double.nan); // marks "no drawer here"
+        seams.add(u[i + 1][1]);
+      } else {
+        seams.add((u[i][3] + u[i + 1][1]) / 2);
+      }
+    }
+    seams.add(u.last[3]);
+    stacks.add((x0: x0, x1: x1, seams: seams));
+    // 3. Snap each seam within a window no bigger than a third of the smaller neighbour.
+    final minH = hs.reduce(math.min);
+    final win = math.max(3, math.min(H * 0.03, minH * 0.3).round());
+    for (var i = 0; i < seams.length; i++) {
+      if (seams[i].isNaN) continue;
+      seams[i] = seamNear(seams[i], win, a, b);
+    }
   }
-  if (ny1 - ny0 < h * 0.5) {
-    ny0 = y0;
-    ny1 = y1;
+
+  // 4. Stacks that start or end at about the same height start/end together.
+  void alignEnds(bool top) {
+    final tol = H * 0.03;
+    final done = <int>{};
+    for (var i = 0; i < stacks.length; i++) {
+      if (done.contains(i)) continue;
+      final v = top ? stacks[i].seams.first : stacks[i].seams.last;
+      final grp = [
+        for (var j = 0; j < stacks.length; j++)
+          if (!done.contains(j) && ((top ? stacks[j].seams.first : stacks[j].seams.last) - v).abs() < tol) j
+      ];
+      if (grp.length < 2) continue;
+      final m = med([for (final j in grp) top ? stacks[j].seams.first : stacks[j].seams.last]);
+      for (final j in grp) {
+        if (top) {
+          stacks[j].seams[0] = m;
+        } else {
+          stacks[j].seams[stacks[j].seams.length - 1] = m;
+        }
+        done.add(j);
+      }
+    }
   }
-  return [nx0 / W, ny0 / H, nx1 / W, ny1 / H];
+
+  alignEnds(true);
+  alignEnds(false);
+
+  // 5. Out to rectangles.
+  final out = <List<double>>[];
+  for (final st in stacks) {
+    final sm = st.seams;
+    for (var i = 0; i + 1 < sm.length; i++) {
+      if (sm[i].isNaN || sm[i + 1].isNaN) continue;
+      final y0 = sm[i], y1 = sm[i + 1];
+      if (y1 - y0 < H * 0.02) continue;
+      out.add([st.x0 / W, y0 / H, st.x1 / W, y1 / H]);
+    }
+  }
+  return out;
+}
+
+/// The straightened front with faint measuring guides, for the AI's second look.
+Uint8List _guideJpg(Uint8List jpg) {
+  final im = img.decodeJpg(jpg)!;
+  final c = img.ColorRgba8(255, 200, 40, 150);
+  for (var i = 1; i < 10; i++) {
+    final x = (im.width * i / 10).round(), y = (im.height * i / 10).round();
+    img.drawLine(im, x1: x, y1: 0, x2: x, y2: im.height - 1, color: c);
+    img.drawLine(im, x1: 0, y1: y, x2: im.width - 1, y2: y, color: c);
+    img.drawString(im, '0.$i', font: img.arial14, x: x + 2, y: 2, color: c);
+    img.drawString(im, '0.$i', font: img.arial14, x: 2, y: y + 2, color: c);
+  }
+  return img.encodeJpg(im, quality: 88);
+}
+
+/// Background isolate: AI rectangles on the straightened front → lined-up drawers.
+List<List<double>> _refineWork(Map<String, dynamic> args) {
+  final im = img.decodeJpg(args['jpg'] as Uint8List)!;
+  final W = im.width, H = im.height;
+  final lum = Float64List(W * H);
+  for (var y = 0; y < H; y++) {
+    for (var x = 0; x < W; x++) {
+      final px = im.getPixel(x, y);
+      lum[y * W + x] = 0.299 * px.r + 0.587 * px.g + 0.114 * px.b;
+    }
+  }
+  final rects = [for (final r in (args['rects'] as List)) (r as List).cast<double>()];
+  return _regularize(rects, lum, W, H);
 }
 
 /// A smaller JPEG for the AI (max 1568 px on the long side), orientation fixed.
@@ -348,12 +522,33 @@ class _AiMapScreenState extends State<_AiMapScreen> with SingleTickerProviderSta
       if (!mounted) return;
       setState(() => _status = 'Straightening and lining up ${quads.length} drawers…');
       final r = await straightenAndDetect(widget.path, [for (final p in front) Offset(p[0], p[1])], quads: quads);
+      var rects = r.rects;
+      // Second look, head-on: every drawer is an upright rectangle now.
+      try {
+        if (mounted) setState(() => _status = 'Measuring each drawer…');
+        final guide = await compute(_guideJpg, r.jpg);
+        final g = await askClaudeJson(jpg: guide, prompt: kGridPrompt);
+        final grid = <List<double>>[];
+        for (final st in (g['stacks'] as List? ?? [])) {
+          final l = (st['left'] as num).toDouble(), rr = (st['right'] as num).toDouble();
+          final seams = [for (final v in (st['seams'] as List)) (v as num).toDouble()]..sort();
+          for (var i = 0; i + 1 < seams.length; i++) {
+            if (seams[i + 1] - seams[i] > 0.02 && rr - l > 0.03) grid.add([l, seams[i], rr, seams[i + 1]]);
+          }
+        }
+        if (grid.length >= (rects.length * 0.5).ceil()) {
+          final refined = await compute(_refineWork, {'jpg': r.jpg, 'rects': grid});
+          if (refined.isNotEmpty) rects = refined;
+        }
+      } catch (_) {
+        // Keep the first pass.
+      }
       final file = File('${store.photoDir.path}/${store.newId('map')}.jpg');
       await file.writeAsBytes(r.jpg);
       if (!mounted) return;
       await Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => _EditScreen(container: widget.container, mapPath: file.path, aspect: r.width / r.height, rects: r.rects)),
+        MaterialPageRoute(builder: (_) => _EditScreen(container: widget.container, mapPath: file.path, aspect: r.width / r.height, rects: rects)),
       );
     } catch (e) {
       if (mounted) setState(() => _error = e.toString());
