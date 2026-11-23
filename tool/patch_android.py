@@ -42,6 +42,16 @@ if "RecognitionService" not in m:
 open(MANIFEST, "w").write(m)
 print("manifest patched")
 
+# ML Kit's text plugin references other-language recognizers we don't ship.
+rules = """-dontwarn com.google.mlkit.vision.text.chinese.**
+-dontwarn com.google.mlkit.vision.text.devanagari.**
+-dontwarn com.google.mlkit.vision.text.japanese.**
+-dontwarn com.google.mlkit.vision.text.korean.**
+"""
+with open("android/app/proguard-rules.pro", "a") as f:
+    f.write(rules)
+print("proguard rules added")
+
 # Signing: use the permanent key from CI secrets when present.
 keystore = os.environ.get("KEYSTORE_PATH")
 if keystore and os.path.exists(keystore):
