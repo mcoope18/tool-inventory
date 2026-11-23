@@ -36,10 +36,25 @@ jobs:
       - name: Prepare signing key
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          RAW_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          if [ -n "$KEYSTORE_B64" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No signing key secret; using a temporary key"
+            exit 0
+          fi
+          # Strip stray spaces/line breaks that sneak in when pasting.
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/upload.jks" || true
+          PW=$(printf '%s' "$RAW_PASSWORD" | tr -d ' \r\n\t')
+          echo "::add-mask::$PW"
+          echo "Keystore file: $(stat -c%s "$RUNNER_TEMP/upload.jks") bytes (expected 2145)"
+          echo "Password: ${#PW} characters (expected 32)"
+          if keytool -list -keystore "$RUNNER_TEMP/upload.jks" -storepass "$PW" >/dev/null 2>&1; then
+            echo "Signing key checks out"
             echo "KEYSTORE_PATH=$RUNNER_TEMP/upload.jks" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=$PW" >> "$GITHUB_ENV"
+          else
+            echo "::error::The signing key secrets don't match. Re-paste ANDROID_KEYSTORE_B64 and ANDROID_KEY_PASSWORD."
+            exit 1
           fi
 
       - name: Patch Android project
@@ -48,8 +63,6 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter build apk --release
-        env:
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Publish APK as a release
         uses: softprops/action-gh-release@v2
