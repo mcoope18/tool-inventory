@@ -44,6 +44,7 @@ class CaptureQueue extends ChangeNotifier {
           id: store.newId('i'),
           name: p.name!,
           cat: p.cat,
+          qty: p.qty ?? 1,
           loc: loc,
           specs: p.specs,
           photos: [kept],
@@ -61,6 +62,7 @@ class CaptureQueue extends ChangeNotifier {
           cat: p.cat,
           ocrText: res.text,
           reason: p.reason,
+          qty: p.qty ?? 1,
           specs: p.specs,
         ));
         store.changed();

@@ -58,6 +58,20 @@ const _numWords = {
 };
 
 const _types = [
+  ['gewindebohrer', 'Tap', 'cutter'],
+  ['gewindeformer', 'Thread former', 'cutter'],
+  ['schaftfräser', 'End mill', 'cutter'],
+  ['schaftfraser', 'End mill', 'cutter'],
+  ['fräser', 'End mill', 'cutter'],
+  ['ratiobohrer', 'Drill bit', 'cutter'],
+  ['spiralbohrer', 'Drill bit', 'cutter'],
+  ['zentrierbohrer', 'Center drill', 'cutter'],
+  ['anbohrer', 'Spot drill', 'cutter'],
+  ['bohrer', 'Drill bit', 'cutter'],
+  ['reibahle', 'Reamer', 'cutter'],
+  ['senker', 'Countersink', 'cutter'],
+  ['twist drill', 'Drill bit', 'cutter'],
+  ['stub drill', 'Drill bit', 'cutter'],
   ['ball end mill', 'Ball end mill', 'cutter'],
   ['roughing end mill', 'Roughing end mill', 'cutter'],
   ['end mill', 'End mill', 'cutter'],
@@ -102,6 +116,25 @@ const _types = [
   ['vise', 'Vise', 'hand'],
 ];
 
+const _brands = [
+  'Guhring', 'Gühring', 'Sandvik', 'Kennametal', 'OSG', 'Iscar', 'Walter', 'Titex', 'Seco', 'YG-1', 'Harvey', 'Helical',
+  'Garr', 'Nachi', 'Dormer', 'Mitsubishi', 'Kyocera', 'Emuge', 'Widia', 'Precision Twist', 'Cleveland', 'Chicago-Latrobe',
+  'Hertel', 'Accupro', 'Melin', 'SGS', 'Destiny', 'Lakeshore', 'Data Flute', 'Niagara', 'Fullerton', 'Hanita', 'Ingersoll',
+  'Tungaloy', 'Sumitomo', 'Korloy', 'Moly-Dyne', 'Greenfield', 'Union Butterfield', 'Irwin', 'DeWalt', 'Milwaukee', 'Makita',
+  'Bosch', 'Ryobi', 'Snap-on', 'Mac', 'Matco', 'Husky', 'Craftsman', 'Mitutoyo', 'Starrett', 'Fowler', 'Brown & Sharpe',
+  'Noga', 'Kurt', 'Bison', 'Rohm', 'Röhm', 'Techniks', 'Lyndex', 'Parlec', 'Big Kaiser', 'Haimer', 'Rego-Fix', 'Schunk',
+];
+
+String _num2(String v) {
+  // "4,000" or "4.000" -> "4"; "6,35" -> "6.35"
+  var s = v.replaceAll(',', '.');
+  if (s.contains('.')) {
+    s = s.replaceFirst(RegExp(r'0+$'), '');
+    if (s.endsWith('.')) s = s.substring(0, s.length - 1);
+  }
+  return s;
+}
+
 const _coatings = ['altin', 'tialn', 'ticn', 'tin', 'zrn', 'alcrn', 'dlc', 'naco', 'tib2'];
 
 String _spokenToDigits(String t) {
@@ -139,14 +172,27 @@ Parsed _extract(String raw) {
   String? size;
   final frac = RegExp(r'(\d+-)?(\d{1,2})/(\d{1,2})\s*(?:"|”|″|in\b|inch)?').firstMatch(t);
   final dec = RegExp(r'(?<![\d/])(0?\.\d{2,4})\s*(?:"|in\b|inch)?').firstMatch(t);
-  final mm = RegExp(r'(\d+(?:\.\d+)?)\s*mm\b', caseSensitive: false).firstMatch(t);
+  final dia = RegExp(r'(?:Ø|ø|⌀|Φ|φ|\bdia\.?|\bd\s*=)\s*(\d+(?:[.,]\d+)?)\s*(mm|"|in\b|inch)?', caseSensitive: false).firstMatch(t);
+  final mm = RegExp(r'(\d+(?:[.,]\d+)?)\s*mm\b', caseSensitive: false).firstMatch(t);
   final thread = RegExp(r'\b(#?\d{1,2}-\d{2}|M\d{1,2}(?:\s*x\s*\d(?:\.\d+)?)?)\b', caseSensitive: false).firstMatch(t);
-  if (frac != null) {
+  if (dia != null) {
+    final unit = (dia.group(2) ?? '').toLowerCase();
+    size = (unit == '"' || unit.startsWith('in')) ? '${dia.group(1)}"' : '${_num2(dia.group(1)!)} mm';
+  } else if (frac != null) {
     size = '${frac.group(1) ?? ''}${frac.group(2)}/${frac.group(3)}"';
   } else if (dec != null) {
     size = '${dec.group(1)}"';
   } else if (mm != null) {
-    size = '${mm.group(1)} mm';
+    size = '${_num2(mm.group(1)!)} mm';
+  } else {
+    // European catalogs print metric sizes like "4,000" without "mm"
+    final euro = RegExp(r'(?<![\d.,])(\d{1,2},\d{2,3})(?![\d.,])').firstMatch(t);
+    if (euro != null) size = '${_num2(euro.group(1)!)} mm';
+  }
+  // A "drill" with a size and no voltage is a drill bit, not a power drill.
+  if (typeName == 'Drill' && size != null && !RegExp(r'\b\d{2}\s*v(?:olt)?\b').hasMatch(low)) {
+    typeName = 'Drill bit';
+    p.cat = 'cutter';
   }
   if (p.cat == 'cutter' && typeName == 'Tap' && thread != null) {
     p.specs.add(Spec('Thread', thread.group(1)!.toUpperCase()));
@@ -191,6 +237,27 @@ Parsed _extract(String raw) {
   final part = RegExp(r'\b(?:edp|p/n|part\s*(?:no\.?|number|#))\s*:?\s*([A-Z0-9][A-Z0-9\-\.]{2,})', caseSensitive: false).firstMatch(t);
   if (part != null) p.specs.add(Spec('Part number', part.group(1)!.toUpperCase()));
 
+  // Pack quantity printed on the label
+  final pq = RegExp(r'\b(\d{1,4})\s*(?:pcs|pc|pieces|piece|stück|stuck|stk)\b', caseSensitive: false).firstMatch(t) ??
+      RegExp(r'\b(?:qty|quantity|pcs|pieces|stück|stuck|stk)\s*[:.]?\s*(\d{1,4})\b', caseSensitive: false).firstMatch(t);
+  if (pq != null) p.qty = int.tryParse(pq.group(1)!);
+
+  // Brand
+  for (final b in _brands) {
+    if (RegExp('\\b${RegExp.escape(b.toLowerCase())}\\b').hasMatch(low)) {
+      p.specs.add(Spec('Brand', b == 'Gühring' ? 'Guhring' : b));
+      break;
+    }
+  }
+  final din = RegExp(r'\b(DIN|ISO|ANSI)\s*(\d{3,5}[A-Z]?)', caseSensitive: false).firstMatch(t);
+  if (din != null) p.specs.add(Spec('Standard', '${din.group(1)!.toUpperCase()} ${din.group(2)!.toUpperCase()}'));
+  if (part == null) {
+    final no = RegExp(r'(?:N[ºo°]|Nr\.?|Art\.?-?\s*Nr\.?|Cat\.?\s*#)\s*([0-9][0-9\-\.\s]{3,18}[0-9])', caseSensitive: false).firstMatch(t);
+    if (no != null) p.specs.add(Spec('Part number', no.group(1)!.replaceAll(RegExp(r'\s+'), '')));
+  }
+  final ean = RegExp(r'\b(\d{12,13})\b').firstMatch(t);
+  if (ean != null) p.specs.add(Spec('Barcode', ean.group(1)!));
+
   // Build a readable name
   if (typeName != null) {
     final parts = <String>[];
@@ -201,6 +268,8 @@ Parsed _extract(String raw) {
     final m = p.specs.where((s) => s.k == 'Material');
     if (m.isNotEmpty && p.cat == 'cutter') parts.add(m.first.v.toLowerCase() == 'hss' ? 'HSS' : m.first.v.toLowerCase());
     parts.add(parts.isEmpty ? typeName : typeName.toLowerCase());
+    final brand = p.specs.where((s) => s.k == 'Brand');
+    if (brand.isNotEmpty && p.cat == 'cutter') parts.insert(0, brand.first.v);
     final n = parts.join(' ');
     p.name = n[0].toUpperCase() + n.substring(1);
   }
@@ -219,7 +288,7 @@ Parsed parseLabel(String text) {
   } else if (hasType) {
     p.reason = 'Read the type but not the size.';
   } else {
-    p.reason = 'Couldn’t tell what this is from the label.';
+    p.reason = 'Read the label but didn’t recognize the tool. Tell me what it is.';
   }
   return p;
 }

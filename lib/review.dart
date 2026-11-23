@@ -161,6 +161,11 @@ class _ReviewCardState extends State<_ReviewCard> {
             ]),
           ),
         ],
+        if (r.ocrText.trim().isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Read from the label: ${r.ocrText.replaceAll('\n', ' · ')}',
+              maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(color: kText2, fontSize: 12, height: 1.4)),
+        ],
         if (filled) ...[
           const SizedBox(height: 8),
           Text('You said: “${r.heard}”', style: const TextStyle(color: kText2, fontSize: 12, height: 1.4)),
