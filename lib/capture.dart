@@ -31,6 +31,12 @@ class CaptureQueue extends ChangeNotifier {
   }
   final _recognizer = TextRecognizer(script: TextRecognitionScript.latin);
 
+  bool keepOpen = false;
+  void setKeepOpen(bool v) {
+    keepOpen = v;
+    notifyListeners();
+  }
+
   Future<void> add(String rawPath) async {
     final kept = await store.keepPhoto(rawPath);
     final s = Shot(store.newId('s'), kept);
@@ -89,14 +95,15 @@ class CaptureScreen extends StatelessWidget {
   final VoidCallback onGoReview;
   const CaptureScreen({super.key, required this.onGoReview});
 
-  Future<void> _shootLoop(BuildContext context) async {
+  Future<void> _shoot(BuildContext context) async {
     final picker = ImagePicker();
-    // Keeps reopening the camera until you back out, so you can walk and shoot.
-    while (true) {
+    // One photo per tap, then back to the app. With "Keep camera open" on, the
+    // camera reopens after each photo until you back out.
+    do {
       final x = await picker.pickImage(source: ImageSource.camera, imageQuality: 85, maxWidth: 2200);
       if (x == null) break;
       captureQueue.add(x.path); // not awaited: reading happens in the background
-    }
+    } while (captureQueue.keepOpen);
   }
 
   @override
@@ -143,7 +150,7 @@ class CaptureScreen extends StatelessWidget {
             const SizedBox(height: 24),
             Center(
               child: GestureDetector(
-                onTap: () => _shootLoop(context),
+                onTap: () => _shoot(context),
                 child: Container(
                   width: 120,
                   height: 120,
@@ -157,7 +164,19 @@ class CaptureScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            const Center(child: Text('Tap to start shooting. Back out of the camera when you’re done.', textAlign: TextAlign.center, style: TextStyle(color: kText2, fontSize: 13))),
+            Center(
+              child: Text(captureQueue.keepOpen ? 'Camera reopens after each photo. Back out when you’re done.' : 'Tap for each photo.',
+                  textAlign: TextAlign.center, style: const TextStyle(color: kText2, fontSize: 13)),
+            ),
+            const SizedBox(height: 6),
+            SwitchListTile(
+              value: captureQueue.keepOpen,
+              onChanged: (v) => captureQueue.setKeepOpen(v),
+              activeThumbColor: kAmber,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Keep camera open', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+              subtitle: const Text('For walking the shop and shooting lots of tools in a row', style: TextStyle(color: kText2, fontSize: 12)),
+            ),
             const SizedBox(height: 24),
             if (shots.isNotEmpty) ...[
               Row(children: [
