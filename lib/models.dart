@@ -63,6 +63,7 @@ class Item {
   String source;
   String notes;
   int hits; // times opened from search
+  int? lowAt; // warn when quantity is at or below this
   DateTime added;
 
   Item({
@@ -77,6 +78,7 @@ class Item {
     this.source = '',
     this.notes = '',
     this.hits = 0,
+    this.lowAt,
     DateTime? added,
   })  : specs = specs ?? [],
         aliases = aliases ?? [],
@@ -95,6 +97,7 @@ class Item {
         'source': source,
         'notes': notes,
         'hits': hits,
+        'lowAt': lowAt,
         'added': added.toIso8601String(),
       };
 
@@ -110,8 +113,11 @@ class Item {
         source: j['source'] ?? '',
         notes: j['notes'] ?? '',
         hits: (j['hits'] ?? 0) as int,
+        lowAt: j['lowAt'] as int?,
         added: DateTime.tryParse(j['added'] ?? '') ?? DateTime.now(),
       );
+
+  bool get isLow => lowAt != null && qty <= lowAt!;
 
   String? spec(String key) {
     for (final s in specs) {

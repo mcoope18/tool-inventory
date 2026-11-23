@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'buy.dart';
 import 'models.dart';
 import 'parse.dart';
 import 'storage_map.dart';
@@ -173,6 +174,26 @@ class _ItemScreenState extends State<ItemScreen> {
                 }),
               ]),
             ),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => setLowAt(context, it, store.changed),
+                  style: ghostBtn(),
+                  icon: Icon(it.isLow ? Icons.warning_amber_rounded : Icons.notifications_none_rounded, color: it.isLow ? kAmber : kText2),
+                  label: Text(it.lowAt == null ? 'Low alert: off' : (it.isLow ? 'Running low (≤${it.lowAt})' : 'Alert at ${it.lowAt}')),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => showBuySheet(context, it),
+                  style: it.isLow ? amberBtn() : FilledButton.styleFrom(backgroundColor: kCard, foregroundColor: kAmber, minimumSize: const Size(44, 48)),
+                  icon: const Icon(Icons.shopping_cart_outlined),
+                  label: const Text('Buy more'),
+                ),
+              ),
+            ]),
             const SizedBox(height: 12),
             // Record completeness + improve
             Container(

@@ -153,6 +153,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SizedBox(width: 8),
                 _Stat(n: store.review.length, label: 'To review', amber: true, onTap: widget.onGoReview),
               ]),
+              ...() {
+                final low = store.items.where((i) => i.isLow).toList();
+                if (low.isEmpty) return <Widget>[];
+                return [
+                  const SizedBox(height: 20),
+                  Text('RUNNING LOW · ${low.length}', style: sectionLabel.copyWith(color: kAmber)),
+                  const SizedBox(height: 8),
+                  SectionCard(children: [
+                    for (final it in low)
+                      ItemRow(item: it, sub: '${it.qty} left · alert at ${it.lowAt} · tap to reorder', onTap: () => Navigator.of(context).pushNamed('/item', arguments: it.id)),
+                  ]),
+                ];
+              }(),
               const SizedBox(height: 20),
               Row(children: [
                 const Text('LOCATIONS', style: sectionLabel),

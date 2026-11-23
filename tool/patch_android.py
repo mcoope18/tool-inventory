@@ -33,6 +33,10 @@ queries = """
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
 """
 if "RecognitionService" not in m:
     if "<queries>" in m:
