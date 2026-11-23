@@ -10,3 +10,6 @@ android/.gradle/
 android/local.properties
 android/key.properties
 *.jks
+
+# Local copies of signing secrets (never commit)
+signing-secrets/
