@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'cutout.dart';
 import 'location.dart';
@@ -27,12 +28,20 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
   late final AnimationController _open = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
   late final AnimationController _expand = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
   late final AnimationController _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+  late final AnimationController _snap = AnimationController(vsync: this, duration: const Duration(milliseconds: 260));
   String? _sel;
+  double _scroll = 0; // which tool sits at the top of the arc (fractional while swiping)
+  double _snapFrom = 0, _snapTo = 0;
 
   @override
   void initState() {
     super.initState();
     _sel = widget.focusItemId;
+    final fi = _items().indexWhere((i) => i.id == widget.focusItemId);
+    if (fi >= 0) _scroll = fi.toDouble();
+    _snap.addListener(() {
+      setState(() => _scroll = _snapFrom + (_snapTo - _snapFrom) * Curves.easeOutCubic.transform(_snap.value));
+    });
     () async {
       await Future.delayed(const Duration(milliseconds: 450));
       if (!mounted) return;
@@ -53,7 +62,23 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
     _open.dispose();
     _expand.dispose();
     _pulse.dispose();
+    _snap.dispose();
     super.dispose();
+  }
+
+  void _scrollTo(double target) {
+    _snapFrom = _scroll;
+    _snapTo = target;
+    _snap.forward(from: 0);
+  }
+
+  void _syncSelection(List<Item> items) {
+    if (items.isEmpty) return;
+    final i = _scroll.round().clamp(0, items.length - 1);
+    if (items[i].id != _sel) {
+      HapticFeedback.selectionClick();
+      _sel = items[i].id;
+    }
   }
 
   List<Item> _items() => store.items.where((i) => i.loc == widget.drawer.id).take(10).toList();
@@ -98,10 +123,23 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
         final L = q[0] * W, T = q[1] * mapH, R = q[2] * W, B = q[5] * mapH;
         final dw = R - L, dh = B - T;
         final trayH = (dh * 2.4).clamp(90.0, 190.0);
-        const topPad = 190.0; // room for tools to float into
+        const topPad = 210.0; // room for tools to float into
         final totalH = topPad + mapH + trayH + 30;
         return ListView(padding: const EdgeInsets.symmetric(horizontal: 12), children: [
-          SizedBox(
+          GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragUpdate: (dd) {
+              if (_expand.value < 0.9 || items.isEmpty) return;
+              setState(() {
+                _scroll = (_scroll - dd.delta.dx / (W * 0.62 * 0.40)).clamp(-0.4, items.length - 0.6);
+                _syncSelection(items);
+              });
+            },
+            onHorizontalDragEnd: (_) {
+              if (items.isEmpty) return;
+              _scrollTo(_scroll.round().clamp(0, items.length - 1).toDouble());
+            },
+            child: SizedBox(
             height: totalH,
             width: W,
             child: AnimatedBuilder(
@@ -122,14 +160,18 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
                   final y = trayTop + (trayBottom - trayTop) * 0.55;
                   return Offset(x, y);
                 }
+                // Arc above the toolbox, like the camera zoom dial: swipe to roll tools.
+                final arcR = W * 0.62;
+                final arcC = Offset(W / 2, 56 + arcR);
+                const step = 0.40; // radians between tools
+                double theta(int i) => (i - _scroll) * step;
                 Offset lifted(int i) {
-                  final cols = math.min(n, 5);
-                  final row = i ~/ cols, col = i % cols;
-                  final inRow = math.min(cols, n - row * cols);
-                  final x = W * (col + 0.5) / inRow;
-                  final y = 50.0 + row * 86;
-                  return Offset(x, y);
+                  final t = theta(i);
+                  return arcC + Offset(arcR * math.sin(t), -arcR * math.cos(t));
                 }
+                double arcScale(int i) => 1 - 0.5 * math.min(1.0, theta(i).abs() / 1.2);
+                double arcFade(int i) => (1 - theta(i).abs() / 1.35).clamp(0.0, 1.0);
+                double liftedSize(int i, double slotSize) => 92 * arcScale(i);
 
                 final slotSize = math.min(dw * 0.8 / n, (trayBottom - trayTop) * 0.8).clamp(18.0, 64.0);
                 final children = <Widget>[
@@ -151,8 +193,15 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
                           slots: [for (var i = 0; i < items.length; i++) slot(i)],
                           slotSize: slotSize,
                           lines: e,
-                          lifted: [for (var i = 0; i < items.length; i++) lifted(i)],
-                          stagger: [for (var i = 0; i < items.length; i++) _stagger(e, i, items.length)],
+                          lifted: [
+                            for (var i = 0; i < items.length; i++)
+                              () {
+                                final t = Curves.easeOutBack.transform(_stagger(e, i, items.length));
+                                final size = slotSize + (liftedSize(i, slotSize) - slotSize) * t;
+                                return Offset.lerp(slot(i), lifted(i), t)! + Offset(0, size * 0.45);
+                              }()
+                          ],
+                          stagger: [for (var i = 0; i < items.length; i++) _stagger(e, i, items.length) * (items[i].id == _sel ? 1.0 : 0.25 * arcFade(i))],
                         ),
                       ),
                     ),
@@ -162,18 +211,25 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
                       () {
                         final t = Curves.easeOutBack.transform(_stagger(e, i, items.length));
                         final p = Offset.lerp(slot(i), lifted(i), t)!;
-                        final size = slotSize + (74 - slotSize) * t;
+                        final size = slotSize + (liftedSize(i, slotSize) - slotSize) * t;
                         final isSel = items[i].id == _sel;
+                        final fade = 1 - (1 - arcFade(i)) * t;
+                        if (fade <= 0.01) return const SizedBox.shrink();
                         return Positioned(
                           left: p.dx - size / 2,
                           top: p.dy - size / 2,
                           width: size,
                           height: size,
                           child: Opacity(
-                            opacity: ((o - 0.3) / 0.7).clamp(0.0, 1.0),
+                            opacity: ((o - 0.3) / 0.7).clamp(0.0, 1.0) * fade,
                             child: GestureDetector(
                               onTap: () {
-                                if (_expand.value < 1) _expand.forward();
+                                if (_expand.value < 1) {
+                                  _scroll = i.toDouble();
+                                  _expand.forward();
+                                } else {
+                                  _scrollTo(i.toDouble());
+                                }
                                 setState(() => _sel = items[i].id);
                               },
                               child: Container(
@@ -232,6 +288,7 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
               },
             ),
           ),
+          ),
           if (items.isEmpty)
             const Padding(
               padding: EdgeInsets.all(12),
@@ -255,7 +312,18 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
                         minimumSize: const Size(200, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      onPressed: () => up ? _expand.reverse() : _expand.forward(),
+                      onPressed: () {
+                        if (up) {
+                          _expand.reverse();
+                        } else {
+                          final si = items.indexWhere((i) => i.id == _sel);
+                          setState(() {
+                            _scroll = si >= 0 ? si.toDouble() : 0;
+                            _syncSelection(items);
+                          });
+                          _expand.forward();
+                        }
+                      },
                       icon: Icon(up ? Icons.close_fullscreen_rounded : Icons.open_in_full_rounded),
                       label: Text(up ? 'Put tools back' : 'Expand tools', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                     ),
@@ -349,7 +417,7 @@ class _TrayPainter extends CustomPainter {
       final t = stagger[i];
       if (t <= 0) continue;
       final from = slots[i];
-      final to = Offset.lerp(from, lifted[i] + const Offset(0, 34), t)!;
+      final to = lifted[i]; // current position of the lifted tool
       final glow = Paint()
         ..color = kAmber.withValues(alpha: 0.18 * t)
         ..strokeWidth = 6
