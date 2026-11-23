@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'capture.dart';
+import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -27,7 +28,9 @@ class LocationScreen extends StatelessWidget {
               PopupMenuButton<String>(
                 color: kSurface,
                 onSelected: (v) async {
-                  if (v == 'rename') {
+                  if (v == 'map') {
+                    await startMapSetup(context, l);
+                  } else if (v == 'rename') {
                     final c = TextEditingController(text: l.name);
                     final name = await showDialog<String>(
                       context: context,
@@ -70,6 +73,7 @@ class LocationScreen extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => const [
+                  PopupMenuItem(value: 'map', child: Text('Map from a new photo')),
                   PopupMenuItem(value: 'rename', child: Text('Rename')),
                   PopupMenuItem(value: 'move', child: Text('Move with everything inside')),
                   PopupMenuItem(value: 'delete', child: Text('Remove')),
@@ -92,6 +96,44 @@ class LocationScreen extends StatelessWidget {
                 label: const Text('Shoot here'),
               ),
             ]),
+            const SizedBox(height: 16),
+            if (l.mapPhoto != null)
+              StorageMapView(
+                container: l,
+                caption: 'Tap a drawer to see what’s inside',
+                onTapDrawer: (d) => Navigator.push(context, MaterialPageRoute(builder: (_) => LocationScreen(id: d.id, onShootHere: onShootHere))),
+              )
+            else if (mapOwner(l.id) != null)
+              StorageMapView(
+                container: mapOwner(l.id)!,
+                litId: l.id,
+                caption: 'You’re looking in ${l.name}',
+                onTapDrawer: (d) => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LocationScreen(id: d.id, onShootHere: onShootHere))),
+              )
+            else if (l.kind != 'Drawer' && l.kind != 'Bin' && l.kind != 'Shelf')
+              Material(
+                color: kSurface,
+                borderRadius: BorderRadius.circular(16),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => startMapSetup(context, l),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(border: Border.all(color: const Color(0xFF3A3F46)), borderRadius: BorderRadius.circular(16)),
+                    child: const Row(children: [
+                      Icon(Icons.view_agenda_outlined, color: kAmber, size: 28),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Map it from a photo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                          SizedBox(height: 2),
+                          Text('Snap the front. The app finds the drawers and makes them tappable.', style: TextStyle(color: kText2, fontSize: 13)),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
             Row(children: [
               const Text('INSIDE', style: sectionLabel),

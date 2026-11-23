@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'models.dart';
 import 'parse.dart';
+import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
@@ -155,6 +156,10 @@ class _ItemScreenState extends State<ItemScreen> {
                 ]),
               ),
             ),
+            if (mapOwner(it.loc) != null && mapOwner(it.loc)!.id != it.loc) ...[
+              const SizedBox(height: 8),
+              StorageMapView(container: mapOwner(it.loc)!, litId: it.loc, caption: 'It’s in ${store.short(it.loc)}'),
+            ],
             const SizedBox(height: 10),
             Container(
               padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),

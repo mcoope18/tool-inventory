@@ -26,10 +26,20 @@ class Loc {
   String name;
   String? parent;
   String kind;
-  Loc({required this.id, required this.name, this.parent, this.kind = 'Area'});
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'parent': parent, 'kind': kind};
-  factory Loc.fromJson(Map<String, dynamic> j) =>
-      Loc(id: j['id'], name: j['name'] ?? '', parent: j['parent'], kind: j['kind'] ?? 'Area');
+  String? mapPhoto; // straightened photo of this container's front, used as a tappable map
+  double? mapAspect; // width / height of mapPhoto
+  List<double>? poly; // this spot's outline on its parent's map: x1,y1,...x4,y4 (0..1)
+  Loc({required this.id, required this.name, this.parent, this.kind = 'Area', this.mapPhoto, this.mapAspect, this.poly});
+  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'parent': parent, 'kind': kind, 'mapPhoto': mapPhoto, 'mapAspect': mapAspect, 'poly': poly};
+  factory Loc.fromJson(Map<String, dynamic> j) => Loc(
+        id: j['id'],
+        name: j['name'] ?? '',
+        parent: j['parent'],
+        kind: j['kind'] ?? 'Area',
+        mapPhoto: j['mapPhoto'],
+        mapAspect: (j['mapAspect'] as num?)?.toDouble(),
+        poly: (j['poly'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+      );
 }
 
 const kCats = ['cutter', 'hand', 'power', 'measure', 'other'];

@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'location.dart';
 import 'models.dart';
 import 'parse.dart';
+import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
@@ -124,6 +125,15 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_buy && _draft != null) _buyCard(),
             if (searching) ...[
               const SizedBox(height: 14),
+              ...() {
+                final top = results.where((i) => mapOwner(i.loc) != null && mapOwner(i.loc)!.id != i.loc).toList();
+                if (top.isEmpty) return <Widget>[];
+                final t = top.first;
+                return [
+                  StorageMapView(container: mapOwner(t.loc)!, litId: t.loc, caption: '${t.name} is in ${store.short(t.loc)}'),
+                  const SizedBox(height: 14),
+                ];
+              }(),
               Text('${results.length} ${results.length == 1 ? 'MATCH' : 'MATCHES'}', style: sectionLabel),
               const SizedBox(height: 8),
               if (results.isNotEmpty)
