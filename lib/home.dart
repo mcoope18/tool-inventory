@@ -9,6 +9,7 @@ import 'models.dart';
 import 'parse.dart';
 import 'storage_map.dart';
 import 'store.dart';
+import 'sync.dart';
 import 'theme.dart';
 import 'voice.dart';
 import 'where.dart';
@@ -81,7 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: Listenable.merge([store, account]),
+      listenable: Listenable.merge([store, account, sync]),
       builder: (context, _) {
         final results = _buy ? <Item>[] : store.search(_q.text);
         final searching = !_buy && _q.text.trim().isNotEmpty;
@@ -104,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Icon(Icons.auto_awesome_rounded, color: kAmber),
                   const SizedBox(width: 10),
                   const Expanded(
-                    child: Text('Sign in to turn on AI drawer finding. Sharing with Alex comes next.', style: TextStyle(fontSize: 13, height: 1.35)),
+                    child: Text('Sign in to turn on AI drawer finding, backup, and sharing with Alex.', style: TextStyle(fontSize: 13, height: 1.35)),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -130,7 +131,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(children: [
                   const Icon(Icons.verified_user_outlined, size: 14, color: kBlue),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(account.email ?? '', style: const TextStyle(color: kText2, fontSize: 12))),
+                  Expanded(
+                    child: Text(
+                      sync.status.isEmpty ? (account.email ?? '') : '${account.email} · ${sync.status}',
+                      maxLines: 2,
+                      style: TextStyle(color: sync.status.startsWith('Synced') ? kBlue : kText2, fontSize: 12),
+                    ),
+                  ),
                   TextButton(onPressed: account.signOut, child: const Text('Sign out', style: TextStyle(fontSize: 12))),
                 ]),
               ),

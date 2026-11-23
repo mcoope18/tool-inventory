@@ -14,6 +14,7 @@ class Store extends ChangeNotifier {
   final List<ReviewEntry> review = [];
   bool loaded = false;
   late Directory _dir;
+  Directory get dataDir => _dir;
   int _seq = 0;
 
   Directory get photoDir => Directory('${_dir.path}/photos');
@@ -51,10 +52,27 @@ class Store extends ChangeNotifier {
     await tmp.rename('${_dir.path}/inventory.json');
   }
 
+  /// Called after local edits so the sync engine can push them.
+  VoidCallback? onLocalChange;
+  Future<void> _saving = Future.value();
+
+  void _queueSave() {
+    _saving = _saving.then((_) => _save()).catchError((_) {});
+  }
+
   void changed() {
     notifyListeners();
-    _save();
+    _queueSave();
+    onLocalChange?.call();
   }
+
+  /// For changes that came from the shared workspace (no push back).
+  void changedFromRemote() {
+    notifyListeners();
+    _queueSave();
+  }
+
+  String photoPathFor(String name) => '${photoDir.path}/$name';
 
   /// Copies a picked photo into the app folder so it survives cache cleanup.
   Future<String> keepPhoto(String srcPath) async {

@@ -7,6 +7,7 @@ import 'item.dart';
 import 'models.dart';
 import 'review.dart';
 import 'store.dart';
+import 'sync.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -14,6 +15,12 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   store.load();
   account.init();
+  void maybeSync() {
+    if (store.loaded && account.signedIn && !sync.on && !sync.busy) sync.start();
+    if (!account.signedIn && sync.on) sync.stop();
+  }
+  store.addListener(maybeSync);
+  account.addListener(maybeSync);
   runApp(const ToolInventoryApp());
 }
 
