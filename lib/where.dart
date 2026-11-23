@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 
+import 'fmt.dart';
 import 'location.dart';
 import 'models.dart';
 import 'storage_map.dart';
@@ -57,11 +58,7 @@ const _kindWords = [
   ['shelf', 'Shelf', 3],
 ];
 
-String _title(String s) => s
-    .split(' ')
-    .where((w) => w.isNotEmpty)
-    .map((w) => w.length <= 2 && w != 'of' ? w.toUpperCase() : w[0].toUpperCase() + w.substring(1))
-    .join(' ');
+String _title(String s) => titleCase(s);
 
 /// Splits a spoken place into nested segments, outermost first.
 List<_Seg> parsePlace(String said) {
@@ -222,4 +219,26 @@ Future<void> sayToolHere(BuildContext context, Loc where, Item Function(String s
   if (said == null || said.isEmpty || !context.mounted) return;
   final it = store.addItem(build(said));
   toast(context, 'Added ${it.name} to ${store.short(where.id)}');
+}
+
+/// "Barn › Red Toolbox › Top 2" → that location, reusing what exists (exact
+/// names first) and creating any levels that don't exist yet.
+Loc? resolvePath(String path) {
+  final parts = path.split(RegExp(r'\s*(?:›|>)\s*')).map((p) => p.trim()).where((p) => p.isNotEmpty).toList();
+  String? parent;
+  Loc? last;
+  for (final p in parts) {
+    Loc? l;
+    for (final k in store.children(parent)) {
+      if (_n(k.name) == _n(p)) l = k;
+    }
+    l ??= _find(p, parent);
+    if (l == null) {
+      final segs = parsePlace(p);
+      l = store.addLoc(p, segs.isEmpty ? 'Area' : segs.first.kind, parent);
+    }
+    parent = l.id;
+    last = l;
+  }
+  return last;
 }

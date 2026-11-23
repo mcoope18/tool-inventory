@@ -4,6 +4,8 @@ import 'cutout.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'account.dart';
+import 'identify.dart';
 import 'models.dart';
 import 'parse.dart';
 import 'store.dart';
@@ -45,6 +47,25 @@ class CaptureQueue extends ChangeNotifier {
     final loc = saveTo;
     try {
       final res = await _recognizer.processImage(InputImage.fromFilePath(kept));
+      if (account.signedIn) {
+        s.label = 'Identifying…';
+        notifyListeners();
+        try {
+          final tools = await identifyPhoto(kept, ocr: res.text);
+          if (tools.isNotEmpty) {
+            await saveFound(tools, photo: kept, loc: loc, ocr: res.text, source: 'Identified by AI from your photo');
+            final sure = tools.where((t) => t.sure).length;
+            s.cat = tools.first.cat;
+            s.status = sure > 0 ? 'added' : 'review';
+            s.label = tools.length == 1 ? (sure == 1 ? 'Added' : 'Review') : '$sure added${sure < tools.length ? ', ${tools.length - sure} review' : ''}';
+            s.itemId = sure == 1 && tools.length == 1 ? store.items.last.id : null;
+            notifyListeners();
+            return;
+          }
+        } catch (_) {
+          // No signal or AI trouble: fall back to reading the label on the phone.
+        }
+      }
       final p = parseLabel(res.text);
       s.cat = p.cat;
       if (p.confident && p.name != null) {
@@ -90,6 +111,54 @@ class CaptureQueue extends ChangeNotifier {
 }
 
 final captureQueue = CaptureQueue();
+
+/// Saves what the AI found in one photo. Sure ones become tools (each cropped
+/// to its own photo when the photo held several); unsure ones go to Review.
+Future<List<Item>> saveFound(List<FoundTool> tools, {required String photo, String? loc, String ocr = '', String source = '', bool trustAll = false}) async {
+  final many = tools.length > 1;
+  final crops = many
+      ? await cropTools(photo, [for (final t in tools) t.box], store.photoDir.path, [for (var i = 0; i < tools.length; i++) store.newId('crop')])
+      : List<String?>.filled(tools.length, null);
+  final label = ocr.trim().isEmpty ? '' : 'Label: ${ocr.replaceAll('\n', ' · ')}';
+  final added = <Item>[];
+  for (var i = 0; i < tools.length; i++) {
+    final t = tools[i];
+    final own = crops[i];
+    if (t.sure || trustAll) {
+      final it = store.addItem(Item(
+        id: store.newId('i'),
+        name: t.name,
+        cat: t.cat,
+        qty: t.qty,
+        loc: loc,
+        specs: t.specs,
+        pieces: t.pieces,
+        missing: t.missing,
+        photos: [own ?? photo, if (own != null) photo],
+        source: source,
+        notes: many ? '' : label,
+      ));
+      added.add(it);
+      ensureCutout(it);
+    } else {
+      store.review.add(ReviewEntry(
+        id: store.newId('r'),
+        photo: own ?? photo,
+        loc: loc,
+        guess: t.name,
+        cat: t.cat,
+        ocrText: many ? '' : ocr,
+        reason: t.question.isNotEmpty ? t.question : 'Not sure about this one. Tell me what it is.',
+        qty: t.qty,
+        specs: t.specs,
+        pieces: t.pieces,
+        missing: t.missing,
+      ));
+    }
+  }
+  store.changed();
+  return added;
+}
 
 class CaptureScreen extends StatelessWidget {
   final VoidCallback onGoReview;

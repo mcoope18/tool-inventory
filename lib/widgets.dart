@@ -232,3 +232,45 @@ Future<Loc?> newLocationDialog(BuildContext context, {String? parent}) async {
     ),
   );
 }
+
+/// Every size in a set. Missing ones are dimmed and struck through; tap a
+/// size to mark it missing or found.
+class SetPieces extends StatelessWidget {
+  final List<String> pieces;
+  final List<String> missing;
+  final void Function(String size) onToggle;
+  const SetPieces({super.key, required this.pieces, required this.missing, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final have = pieces.where((p) => !missing.contains(p)).length;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('IN THIS SET · $have OF ${pieces.length}${missing.isEmpty ? '' : ' · TAP A SIZE IF YOU FIND IT'}', style: sectionLabel),
+      const SizedBox(height: 6),
+      Wrap(spacing: 6, runSpacing: 6, children: [
+        for (final p in pieces)
+          GestureDetector(
+            onTap: () => onToggle(p),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: missing.contains(p) ? Colors.transparent : kTile,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: missing.contains(p) ? kLine : kAmber.withValues(alpha: 0.5)),
+              ),
+              child: Text(p,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: missing.contains(p) ? kText2 : kText,
+                    decoration: missing.contains(p) ? TextDecoration.lineThrough : null,
+                  )),
+            ),
+          ),
+      ]),
+      if (missing.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        Text('Missing: ${missing.join(', ')}', style: const TextStyle(color: kAmber, fontSize: 12)),
+      ],
+    ]);
+  }
+}

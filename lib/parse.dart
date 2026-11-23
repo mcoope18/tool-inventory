@@ -1,6 +1,7 @@
 // Turns label text (from the camera) and voice notes into tool details.
 // This runs entirely on the phone. An online AI step can be layered on later.
 
+import 'fmt.dart';
 import 'models.dart';
 
 class Parsed {
@@ -9,6 +10,7 @@ class Parsed {
   int? qty;
   final List<Spec> specs = [];
   final List<String> aliases = [];
+  final List<String> pieces = []; // a set's sizes
   bool confident = false;
   bool nameIsGuess = false; // name is just the first words said, not a recognized tool
   String reason = '';
@@ -18,6 +20,16 @@ const _fracWords = {
   'half': '1/2',
   'a half': '1/2',
   'quarter': '1/4',
+  'one quarter': '1/4',
+  'one half': '1/2',
+  'one fourth': '1/4',
+  'a fourth': '1/4',
+  'three fourths': '3/4',
+  'one thirty second': '1/32',
+  'seven thirty seconds': '7/32',
+  'nine thirty seconds': '9/32',
+  'eleven thirty seconds': '11/32',
+  'one sixty fourth': '1/64',
   'a quarter': '1/4',
   'three quarter': '3/4',
   'three quarters': '3/4',
@@ -71,6 +83,11 @@ const _types = [
   ['bohrer', 'Drill bit', 'cutter'],
   ['reibahle', 'Reamer', 'cutter'],
   ['senker', 'Countersink', 'cutter'],
+  ['step drill', 'Step drill bit', 'cutter'],
+  ['step bit', 'Step drill bit', 'cutter'],
+  ['unibit', 'Step drill bit', 'cutter'],
+  ['hole saw', 'Hole saw', 'cutter'],
+  ['annular cutter', 'Annular cutter', 'cutter'],
   ['twist drill', 'Drill bit', 'cutter'],
   ['stub drill', 'Drill bit', 'cutter'],
   ['ball end mill', 'Ball end mill', 'cutter'],
@@ -104,7 +121,10 @@ const _types = [
   ['square', 'Square', 'measure'],
   ['level', 'Level', 'measure'],
   ['gauge', 'Gauge', 'measure'],
+  ['combination wrench', 'Combination wrench', 'hand'],
   ['wrench', 'Wrench', 'hand'],
+  ['allen', 'Hex key', 'hand'],
+  ['hex key', 'Hex key', 'hand'],
   ['socket', 'Socket', 'hand'],
   ['ratchet', 'Ratchet', 'hand'],
   ['pliers', 'Pliers', 'hand'],
@@ -138,13 +158,16 @@ String _num2(String v) {
 
 const _coatings = ['altin', 'tialn', 'ticn', 'tin', 'zrn', 'alcrn', 'dlc', 'naco', 'tib2'];
 
+/// Spoken sizes to shop sizes: "one and three eighths" → 1-3/8".
+String spokenToDigits(String t) => _spokenToDigits(t);
+
 String _spokenToDigits(String t) {
   var s = ' ${t.toLowerCase()} ';
   final keys = _fracWords.keys.toList()..sort((a, b) => b.length.compareTo(a.length));
   for (final k in keys) {
     s = s.replaceAll(RegExp('\\b$k\\b(?:\\s+(?:of an inch|inch|in))?'), '${_fracWords[k]}"');
   }
-  return s.trim();
+  return shopSize(s.trim());
 }
 
 int? _num(String w) {
@@ -195,7 +218,12 @@ Parsed _extract(String raw) {
     typeName = 'Drill bit';
     p.cat = 'cutter';
   }
-  if (p.cat == 'cutter' && typeName == 'Tap' && thread != null) {
+  final range = findRange(t);
+  if (range != null) {
+    p.specs.add(Spec('Range', '${range.$1} – ${range.$2}'));
+    if (RegExp(r'\bset\b|\bkit\b').hasMatch(low)) p.pieces.addAll(expandSet(range.$1, range.$2));
+    if (RegExp(r'\bset\b').hasMatch(low) && typeName != null && !typeName.toLowerCase().endsWith('set')) typeName = '$typeName set';
+  } else if (p.cat == 'cutter' && typeName == 'Tap' && thread != null) {
     p.specs.add(Spec('Thread', thread.group(1)!.toUpperCase()));
   } else if (size != null) {
     p.specs.add(Spec(p.cat == 'cutter' ? 'Diameter' : 'Size', size));
@@ -264,7 +292,7 @@ Parsed _extract(String raw) {
   // Build a readable name
   if (typeName != null) {
     final parts = <String>[];
-    final d = p.specs.where((s) => s.k == 'Diameter' || s.k == 'Size' || s.k == 'Thread');
+    final d = p.specs.where((s) => s.k == 'Diameter' || s.k == 'Size' || s.k == 'Thread' || s.k == 'Range');
     if (d.isNotEmpty) parts.add(d.first.v);
     final f = p.specs.where((s) => s.k == 'Flutes');
     if (f.isNotEmpty) parts.add('${f.first.v}-flute');
@@ -273,8 +301,7 @@ Parsed _extract(String raw) {
     parts.add(parts.isEmpty ? typeName : typeName.toLowerCase());
     final brand = p.specs.where((s) => s.k == 'Brand');
     if (brand.isNotEmpty && p.cat == 'cutter') parts.insert(0, brand.first.v);
-    final n = parts.join(' ');
-    p.name = n[0].toUpperCase() + n.substring(1);
+    p.name = cleanName(parts.join(' '));
   }
   return p;
 }
@@ -332,7 +359,7 @@ Parsed parseVoice(String said) {
     var first = said.split(RegExp(r'[,.;]|\b(?:i have|i got|i call|we call|call it|bought)\b', caseSensitive: false)).first.trim();
     first = first.replaceFirst(RegExp(r"^(?:it's|its|this is|that's|thats|that is|it is)\s+(?:an?\s+|the\s+)?", caseSensitive: false), '');
     if (first.length >= 3) {
-      p.name = _cap(first);
+      p.name = cleanName(first);
       p.nameIsGuess = true;
     }
   }

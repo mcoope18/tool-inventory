@@ -20,7 +20,10 @@ void main() {
   void maybeSync() {
     if (store.loaded && !tidied) {
       tidied = true;
-      Future.microtask(fixDrawerNames);
+      Future.microtask(() {
+        store.tidyAll();
+        fixDrawerNames();
+      });
     }
     if (store.loaded && account.signedIn && !sync.on && !sync.busy) sync.start();
     if (!account.signedIn && sync.on) sync.stop();

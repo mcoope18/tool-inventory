@@ -7,6 +7,7 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 import 'package:image_picker/image_picker.dart';
 
 import 'buy.dart';
+import 'fmt.dart';
 import 'models.dart';
 import 'parse.dart';
 import 'understand.dart';
@@ -14,6 +15,7 @@ import 'storage_map.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
+import 'where.dart';
 import 'widgets.dart';
 
 const _required = {
@@ -41,7 +43,7 @@ class _ItemScreenState extends State<ItemScreen> {
     setState(() => _busy = true);
     try {
       final label = it.notes.split('\n').where((l) => l.startsWith('Label: ')).map((l) => l.substring(7)).join(' ');
-      final e = await understandVoice(said: said, name: it.name, cat: it.cat, qty: it.qty, specs: it.specs, aliases: it.aliases, labelText: label);
+      final e = await understandVoice(said: said, name: it.name, cat: it.cat, qty: it.qty, specs: it.specs, aliases: it.aliases, labelText: label, pieces: it.pieces, missing: it.missing);
       var n = applySpecs(e, it.specs, it.aliases);
       if (e.name != null && e.name != it.name) {
         it.name = e.name!;
@@ -55,10 +57,29 @@ class _ItemScreenState extends State<ItemScreen> {
         it.qty = e.qty!;
         n++;
       }
+      if (e.pieces != null) {
+        it.pieces = e.pieces!;
+        it.missing.removeWhere((m) => !it.pieces.contains(m));
+        n++;
+      }
+      if (e.missing != null) {
+        it.missing = e.missing!;
+        n++;
+      }
+      var moved = '';
+      if (e.moveTo != null) {
+        final to = resolvePath(e.moveTo!);
+        if (to != null && to.id != it.loc) {
+          it.loc = to.id;
+          moved = ' Moved to ${store.short(to.id)}.';
+          n++;
+        }
+      }
+      store.tidyItem(it);
       it.notes = [if (it.notes.isNotEmpty) it.notes, 'You said: \u201c$said\u201d'].join('\n');
       store.changed();
       if (!mounted) return;
-      toast(context, n == 0 ? 'Saved your note. Nothing to change.' : 'Updated $n ${n == 1 ? 'thing' : 'things'} from what you said.');
+      toast(context, n == 0 ? 'Saved your note. Nothing to change.' : 'Updated $n ${n == 1 ? 'thing' : 'things'} from what you said.$moved');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -265,6 +286,17 @@ class _ItemScreenState extends State<ItemScreen> {
                   ),
               ]),
             ],
+            if (it.pieces.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              SetPieces(
+                pieces: it.pieces,
+                missing: it.missing,
+                onToggle: (p) {
+                  it.missing.contains(p) ? it.missing.remove(p) : it.missing.add(p);
+                  store.changed();
+                },
+              ),
+            ],
             if (it.aliases.isNotEmpty) ...[
               const SizedBox(height: 14),
               const Text('ALSO CALLED', style: sectionLabel),
@@ -308,7 +340,7 @@ class _ItemScreenState extends State<ItemScreen> {
       ),
     );
     if (v != null && v.isNotEmpty) {
-      it.name = v;
+      it.name = cleanName(v);
       store.changed();
     }
   }

@@ -7,6 +7,7 @@ import 'understand.dart';
 import 'store.dart';
 import 'theme.dart';
 import 'voice.dart';
+import 'where.dart';
 import 'widgets.dart';
 
 class ReviewScreen extends StatelessWidget {
@@ -68,7 +69,7 @@ class _ReviewCardState extends State<_ReviewCard> {
     if (said == null || said.isEmpty) return;
     setState(() => _thinking = true);
     try {
-      final e = await understandVoice(said: said, name: _name.text, cat: r.cat, qty: r.qty, specs: r.specs, aliases: r.aliases, labelText: r.ocrText);
+      final e = await understandVoice(said: said, name: _name.text, cat: r.cat, qty: r.qty, specs: r.specs, aliases: r.aliases, labelText: r.ocrText, pieces: r.pieces, missing: r.missing);
       if (e.name != null) {
         r.guess = e.name!;
         _name.text = e.name!;
@@ -76,6 +77,9 @@ class _ReviewCardState extends State<_ReviewCard> {
       if (e.cat != null) r.cat = e.cat!;
       if (e.qty != null) r.qty = e.qty!;
       applySpecs(e, r.specs, r.aliases);
+      if (e.pieces != null) r.pieces = e.pieces!;
+      if (e.missing != null) r.missing = e.missing!;
+      if (e.moveTo != null) r.loc = resolvePath(e.moveTo!)?.id ?? r.loc;
       r.heard = r.heard.isEmpty ? said : '${r.heard} \u00b7 $said';
       store.changed();
     } finally {
@@ -95,6 +99,8 @@ class _ReviewCardState extends State<_ReviewCard> {
       specs: r.specs,
       aliases: r.aliases,
       photos: [r.photo],
+      pieces: r.pieces,
+      missing: r.missing,
       source: r.heard.isNotEmpty ? 'Filled in from what you said' : 'Confirmed by you in Review',
       notes: [if (r.ocrText.isNotEmpty) 'Label: ${r.ocrText.replaceAll('\n', ' · ')}', if (r.heard.isNotEmpty) 'You said: “${r.heard}”'].join('\n'),
     ));
@@ -167,6 +173,17 @@ class _ReviewCardState extends State<_ReviewCard> {
                   ]),
                 ),
             ]),
+          ),
+        ],
+        if (r.pieces.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SetPieces(
+            pieces: r.pieces,
+            missing: r.missing,
+            onToggle: (p) => setState(() {
+              r.missing.contains(p) ? r.missing.remove(p) : r.missing.add(p);
+              store.changed();
+            }),
           ),
         ],
         if (r.ocrText.trim().isNotEmpty) ...[

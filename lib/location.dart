@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'explorer.dart';
 
 import 'capture.dart';
+import 'fmt.dart';
 import 'models.dart';
 import 'parse.dart';
+import 'scan.dart';
 import 'storage_map.dart';
 import 'where.dart';
 import 'store.dart';
@@ -50,7 +52,7 @@ class LocationScreen extends StatelessWidget {
                       ),
                     );
                     if (name != null && name.isNotEmpty) {
-                      l.name = name;
+                      l.name = titleCase(name);
                       store.changed();
                     }
                   } else if (v == 'move') {
@@ -187,13 +189,9 @@ class LocationScreen extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   style: ghostBtn(),
-                  onPressed: () {
-                    captureQueue.setSaveTo(l.id);
-                    Navigator.popUntil(context, (r) => r.isFirst);
-                    onShootHere();
-                  },
-                  icon: const Icon(Icons.photo_camera_outlined, color: kAmber),
-                  label: const Text('Shoot tools'),
+                  onPressed: () => shootDrawer(context, l),
+                  icon: const Icon(Icons.document_scanner_outlined, color: kAmber),
+                  label: Text(l.kind == 'Drawer' ? 'Shoot drawer' : 'Shoot all'),
                 ),
               ),
             ]),

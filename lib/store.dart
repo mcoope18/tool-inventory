@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'fmt.dart';
 import 'models.dart';
 
 /// Single source of truth. Everything is saved to one JSON file on the phone
@@ -132,7 +133,7 @@ class Store extends ChangeNotifier {
   }
 
   Loc addLoc(String name, String kind, String? parent) {
-    final l = Loc(id: newId('l'), name: name.trim(), kind: kind, parent: parent);
+    final l = Loc(id: newId('l'), name: titleCase(name.trim()), kind: kind, parent: parent);
     locs.add(l);
     changed();
     return l;
@@ -169,9 +170,38 @@ class Store extends ChangeNotifier {
   }
 
   Item addItem(Item i) {
+    tidyItem(i);
     items.add(i);
     changed();
     return i;
+  }
+
+  /// Title Case names and shop-style sizes.
+  void tidyItem(Item i) {
+    i.name = cleanName(i.name);
+    for (final sp in i.specs) {
+      sp.v = cleanSpecValue(sp.k, sp.v);
+    }
+    i.pieces = [for (final p in i.pieces) shopSize(p)];
+    i.missing = [for (final p in i.missing) shopSize(p)];
+  }
+
+  /// One-time pass over everything saved before names were tidied.
+  void tidyAll() {
+    var n = 0;
+    for (final i in items) {
+      final before = jsonEncode(i.toJson());
+      tidyItem(i);
+      if (jsonEncode(i.toJson()) != before) n++;
+    }
+    for (final l in locs) {
+      final t = titleCase(l.name);
+      if (t != l.name) {
+        l.name = t;
+        n++;
+      }
+    }
+    if (n > 0) changed();
   }
 
   void deleteItem(String id) {

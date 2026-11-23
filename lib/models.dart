@@ -65,6 +65,8 @@ class Item {
   String notes;
   int hits; // times opened from search
   int? lowAt; // warn when quantity is at or below this
+  List<String> pieces; // for a set: every size it should have
+  List<String> missing; // sizes from the set you don't have
   DateTime added;
 
   Item({
@@ -81,10 +83,14 @@ class Item {
     this.hits = 0,
     this.lowAt,
     this.cutout,
+    List<String>? pieces,
+    List<String>? missing,
     DateTime? added,
   })  : specs = specs ?? [],
         aliases = aliases ?? [],
         photos = photos ?? [],
+        pieces = pieces ?? [],
+        missing = missing ?? [],
         added = added ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
@@ -101,6 +107,8 @@ class Item {
         'hits': hits,
         'lowAt': lowAt,
         'cutout': cutout,
+        'pieces': pieces,
+        'missing': missing,
         'added': added.toIso8601String(),
       };
 
@@ -108,16 +116,18 @@ class Item {
         id: j['id'],
         name: j['name'] ?? '',
         cat: j['cat'] ?? 'other',
-        qty: (j['qty'] ?? 1) as int,
+        qty: (j['qty'] as num? ?? 1).toInt(),
         loc: j['loc'],
         specs: ((j['specs'] ?? []) as List).map((e) => Spec.fromJson(Map<String, dynamic>.from(e))).toList(),
         aliases: ((j['aliases'] ?? []) as List).map((e) => e.toString()).toList(),
         photos: ((j['photos'] ?? []) as List).map((e) => e.toString()).toList(),
         source: j['source'] ?? '',
         notes: j['notes'] ?? '',
-        hits: (j['hits'] ?? 0) as int,
-        lowAt: j['lowAt'] as int?,
+        hits: (j['hits'] as num? ?? 0).toInt(),
+        lowAt: (j['lowAt'] as num?)?.toInt(),
         cutout: j['cutout'] as String?,
+        pieces: ((j['pieces'] ?? []) as List).map((e) => e.toString()).toList(),
+        missing: ((j['missing'] ?? []) as List).map((e) => e.toString()).toList(),
         added: DateTime.tryParse(j['added'] ?? '') ?? DateTime.now(),
       );
 
@@ -144,6 +154,8 @@ class ReviewEntry {
   List<Spec> specs;
   List<String> aliases;
   String heard; // last voice note
+  List<String> pieces;
+  List<String> missing;
   DateTime added;
 
   ReviewEntry({
@@ -158,9 +170,13 @@ class ReviewEntry {
     List<Spec>? specs,
     List<String>? aliases,
     this.heard = '',
+    List<String>? pieces,
+    List<String>? missing,
     DateTime? added,
   })  : specs = specs ?? [],
         aliases = aliases ?? [],
+        pieces = pieces ?? [],
+        missing = missing ?? [],
         added = added ?? DateTime.now();
 
   Map<String, dynamic> toJson() => {
@@ -175,6 +191,8 @@ class ReviewEntry {
         'specs': specs.map((s) => s.toJson()).toList(),
         'aliases': aliases,
         'heard': heard,
+        'pieces': pieces,
+        'missing': missing,
         'added': added.toIso8601String(),
       };
 
@@ -186,10 +204,12 @@ class ReviewEntry {
         cat: j['cat'] ?? 'other',
         ocrText: j['ocrText'] ?? '',
         reason: j['reason'] ?? '',
-        qty: (j['qty'] ?? 1) as int,
+        qty: (j['qty'] as num? ?? 1).toInt(),
         specs: ((j['specs'] ?? []) as List).map((e) => Spec.fromJson(Map<String, dynamic>.from(e))).toList(),
         aliases: ((j['aliases'] ?? []) as List).map((e) => e.toString()).toList(),
         heard: j['heard'] ?? '',
+        pieces: ((j['pieces'] ?? []) as List).map((e) => e.toString()).toList(),
+        missing: ((j['missing'] ?? []) as List).map((e) => e.toString()).toList(),
         added: DateTime.tryParse(j['added'] ?? '') ?? DateTime.now(),
       );
 }

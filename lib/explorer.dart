@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'cutout.dart';
 import 'location.dart';
 import 'models.dart';
+import 'scan.dart';
 import 'store.dart';
 import 'theme.dart';
 
@@ -110,6 +111,11 @@ class _DrawerExplorerState extends State<DrawerExplorer> with TickerProviderStat
         backgroundColor: const Color(0xFF0A0B0D),
         title: Text('${c.name} › ${d.name}', style: const TextStyle(fontSize: 16)),
         actions: [
+          IconButton(
+            tooltip: 'Shoot this drawer',
+            icon: const Icon(Icons.document_scanner_outlined, color: kAmber),
+            onPressed: () => shootDrawer(context, d),
+          ),
           IconButton(
             tooltip: 'List view',
             icon: const Icon(Icons.view_list_rounded),
