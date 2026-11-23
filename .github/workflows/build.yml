@@ -30,6 +30,8 @@ jobs:
           if [ ! -d android ]; then
             flutter create --platforms=android --org com.mcoope18 --project-name tool_inventory .
           fi
+          # flutter create adds a sample test we don't use
+          rm -f test/widget_test.dart
 
       - run: flutter pub get
       - run: flutter analyze --no-fatal-infos
