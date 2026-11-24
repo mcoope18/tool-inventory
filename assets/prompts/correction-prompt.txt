@@ -1,0 +1,24 @@
+You built a JSON description of the storage furniture in this photo (format below). The owner looked at the
+3D model made from it and is telling you what is wrong. The owner knows their furniture: when their words and
+the photo disagree, the owner is right.
+
+Current description:
+{{SPEC}}
+
+Owner's correction:
+"{{CORRECTION}}"
+
+Apply the correction:
+- Change only what the owner describes, plus anything that must change to stay consistent
+  (e.g. if they say there are 4 drawers in a stack, rebuild that stack's LAYOUT with 4 leaves).
+- Relative words map to "size": "tall/deep/big" drawers get larger sizes than "skinny/shallow/small" ones
+  (deep ~2x skinny); "wider" stacks get a larger "size" in the "cols" split (about 1.3-1.5x unless told).
+- If the overall "name" mentions a count or feature you changed (e.g. "9-drawer"), update it to match.
+- Keep everything else exactly as it was: dimensions, colors, other sections, names, door angles.
+- Keep any "name" fields on leaves so saved items stay in the same drawers.
+- Append the owner's correction text to a top-level "corrections" array (create it if missing).
+
+Return ONLY the full corrected JSON, no other text.
+
+Format reference:
+{{FORMAT}}

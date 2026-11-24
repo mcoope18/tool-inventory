@@ -19,6 +19,7 @@ const kLocKinds = [
   'Rack',
   'Bag',
   'Vehicle',
+  'Door', // the space behind a cabinet door
 ];
 
 class Loc {
@@ -29,8 +30,36 @@ class Loc {
   String? mapPhoto; // straightened photo of this container's front, used as a tappable map
   double? mapAspect; // width / height of mapPhoto
   List<double>? poly; // this spot's outline on its parent's map: x1,y1,...x4,y4 (0..1)
-  Loc({required this.id, required this.name, this.parent, this.kind = 'Area', this.mapPhoto, this.mapAspect, this.poly});
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'parent': parent, 'kind': kind, 'mapPhoto': mapPhoto, 'mapAspect': mapAspect, 'poly': poly};
+  Map<String, dynamic>? model3d; // 3D description of this container, made by the AI from a photo
+  String? model3dPhoto; // the photo that 3D description came from
+  Map<String, dynamic>? scene; // 3D floor plan of an area: where each container stands
+  String? part; // which drawer/door/shelf of the parent's 3D model this spot is, e.g. "Roll cab · Drawer 3"
+  Loc({
+    required this.id,
+    required this.name,
+    this.parent,
+    this.kind = 'Area',
+    this.mapPhoto,
+    this.mapAspect,
+    this.poly,
+    this.model3d,
+    this.model3dPhoto,
+    this.scene,
+    this.part,
+  });
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'parent': parent,
+        'kind': kind,
+        'mapPhoto': mapPhoto,
+        'mapAspect': mapAspect,
+        'poly': poly,
+        'model3d': model3d,
+        'model3dPhoto': model3dPhoto,
+        'scene': scene,
+        'part': part,
+      };
   factory Loc.fromJson(Map<String, dynamic> j) => Loc(
         id: j['id'],
         name: j['name'] ?? '',
@@ -39,6 +68,10 @@ class Loc {
         mapPhoto: j['mapPhoto'],
         mapAspect: (j['mapAspect'] as num?)?.toDouble(),
         poly: (j['poly'] as List?)?.map((e) => (e as num).toDouble()).toList(),
+        model3d: j['model3d'] == null ? null : Map<String, dynamic>.from(j['model3d']),
+        model3dPhoto: j['model3dPhoto'],
+        scene: j['scene'] == null ? null : Map<String, dynamic>.from(j['scene']),
+        part: j['part'],
       );
 }
 
@@ -65,6 +98,8 @@ class Item {
   String notes;
   int hits; // times opened from search
   int? lowAt; // warn when quantity is at or below this
+  Map<String, dynamic>? model3d; // 3D look: {type, variant, colors} (+ glb: url once a library model exists)
+  double? lengthIn; // real length, for showing the 3D model at the right size
   DateTime added;
 
   Item({
@@ -81,6 +116,8 @@ class Item {
     this.hits = 0,
     this.lowAt,
     this.cutout,
+    this.model3d,
+    this.lengthIn,
     DateTime? added,
   })  : specs = specs ?? [],
         aliases = aliases ?? [],
@@ -101,6 +138,8 @@ class Item {
         'hits': hits,
         'lowAt': lowAt,
         'cutout': cutout,
+        'model3d': model3d,
+        'lengthIn': lengthIn,
         'added': added.toIso8601String(),
       };
 
@@ -118,6 +157,8 @@ class Item {
         hits: (j['hits'] ?? 0) as int,
         lowAt: j['lowAt'] as int?,
         cutout: j['cutout'] as String?,
+        model3d: j['model3d'] == null ? null : Map<String, dynamic>.from(j['model3d']),
+        lengthIn: (j['lengthIn'] as num?)?.toDouble(),
         added: DateTime.tryParse(j['added'] ?? '') ?? DateTime.now(),
       );
 

@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:http/http.dart' as http;
 
 import 'account.dart';
@@ -15,23 +16,27 @@ class AiError implements Exception {
   String toString() => message;
 }
 
-Future<Map<String, dynamic>> askClaudeJson({required List<int> jpg, required String prompt, int maxTokens = 3000}) async {
+Future<Map<String, dynamic>> askClaudeJson({required List<int> jpg, required String prompt, int maxTokens = 3000}) =>
+    askClaudeMulti(images: [('', jpg)], prompt: prompt, maxTokens: maxTokens);
+
+/// Several photos in one request. Each image may have a label ("OVERVIEW photo 1:") sent right before it.
+Future<Map<String, dynamic>> askClaudeMulti({required List<(String, List<int>)> images, required String prompt, int maxTokens = 3000, int timeoutSec = 90}) async {
   final key = await account.aiKey();
   if (key == null) throw AiError('Sign in to use AI.');
+  final content = <Map<String, dynamic>>[];
+  for (final (label, jpg) in images) {
+    if (label.isNotEmpty) content.add({'type': 'text', 'text': label});
+    content.add({
+      'type': 'image',
+      'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': base64Encode(jpg)},
+    });
+  }
+  content.add({'type': 'text', 'text': prompt});
   final body = jsonEncode({
     'model': kVisionModel,
     'max_tokens': maxTokens,
     'messages': [
-      {
-        'role': 'user',
-        'content': [
-          {
-            'type': 'image',
-            'source': {'type': 'base64', 'media_type': 'image/jpeg', 'data': base64Encode(jpg)},
-          },
-          {'type': 'text', 'text': prompt},
-        ],
-      }
+      {'role': 'user', 'content': content}
     ],
   });
   final res = await http
@@ -40,16 +45,21 @@ Future<Map<String, dynamic>> askClaudeJson({required List<int> jpg, required Str
         headers: {'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
         body: body,
       )
-      .timeout(const Duration(seconds: 90));
+      .timeout(Duration(seconds: timeoutSec));
   if (res.statusCode != 200) {
     throw AiError('AI request failed (${res.statusCode}). ${res.body.length > 200 ? res.body.substring(0, 200) : res.body}');
   }
   final j = jsonDecode(res.body) as Map<String, dynamic>;
+  if (j['stop_reason'] == 'max_tokens') throw AiError('The AI answer was cut off (too much in one photo). Try a photo with fewer things in it.');
   final text = ((j['content'] as List).firstWhere((c) => c['type'] == 'text', orElse: () => {'text': ''})['text'] as String);
   final a = text.indexOf('{'), b = text.lastIndexOf('}');
   if (a < 0 || b <= a) throw AiError('AI answer had no data.');
   return jsonDecode(text.substring(a, b + 1)) as Map<String, dynamic>;
 }
+
+/// Prompts for the 3D features live in assets/prompts/<name>.txt.
+final _prompts = <String, String>{};
+Future<String> loadPrompt(String name) async => _prompts[name] ??= await rootBundle.loadString('assets/prompts/$name.txt');
 
 const kDrawerPrompt = '''
 This photo shows tool storage: a toolbox, tool chest, roll cab, cabinet, or shelving.

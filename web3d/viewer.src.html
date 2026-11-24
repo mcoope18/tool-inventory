@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Tool Inventory 3D</title>
+<style>
+  :root { --bg:#121417; --panel:#1b1e22; --text:#e8eaed; --muted:#9aa0a6; --line:#2b2f35; --amber:#f2a516; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--text); font:14px/1.35 system-ui, sans-serif; overflow:hidden; }
+  #view { position:fixed; inset:0; }
+  #view canvas { display:block; width:100%; height:100%; touch-action:none; }
+  button { font:inherit; color:var(--text); background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:6px 11px; }
+  button.on { background:var(--amber); border-color:var(--amber); color:#111; }
+  #label { position:fixed; left:10px; top:10px; max-width:calc(100% - 20px); background:rgba(17,17,17,.85); color:var(--amber); font-weight:700; padding:5px 10px; border-radius:8px; display:none; }
+  #chips { position:fixed; left:0; right:0; bottom:0; padding:8px 10px; display:flex; gap:6px; overflow-x:auto; background:linear-gradient(transparent, rgba(0,0,0,.55)); }
+  #chips:empty { display:none; }
+  .chip { flex:none; padding:5px 11px; border-radius:999px; font-size:12px; white-space:nowrap; }
+  .chip.on { background:var(--amber); border-color:var(--amber); color:#111; }
+  #hud { display:none; position:fixed; left:50%; bottom:52px; transform:translateX(-50%); width:min(420px, calc(100% - 20px)); background:rgba(17,17,17,.88); border-radius:14px; padding:9px; text-align:center; }
+  #hud .row { display:flex; gap:8px; align-items:center; }
+  #hud #tName { flex:1; font-weight:700; font-size:16px; color:var(--amber); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #hud .big { font-size:22px; line-height:1; padding:6px 14px; }
+  #tCount { font-size:12px; color:#aaa; margin-top:2px; }
+  #tOpen { margin-top:6px; font-size:12px; }
+  #editbar { display:none; position:fixed; left:50%; bottom:12px; transform:translateX(-50%); width:min(440px, calc(100% - 20px)); background:rgba(17,17,17,.9); border-radius:12px; padding:8px; gap:6px; flex-wrap:wrap; justify-content:center; }
+  #editbar span { width:100%; text-align:center; font-size:12px; color:#bbb; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #editbar span.warn { color:#ff8a65; }
+  #msg { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); color:var(--muted); text-align:center; padding:20px; }
+  /* review */
+  #review { display:none; position:fixed; inset:0; background:var(--bg); overflow:auto; padding:10px 10px 80px; }
+  #rvPhoto { width:100%; max-height:42vh; object-fit:contain; background:#000; border-radius:10px; display:block; }
+  #rvHead { font-weight:700; margin:10px 2px 2px; } #rvNote { color:var(--muted); font-size:12px; margin:0 2px 8px; }
+  #rvList { display:grid; grid-template-columns:repeat(auto-fill, minmax(165px, 1fr)); gap:8px; }
+  .rv { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:7px; display:grid; gap:5px; }
+  .rv.off { opacity:.45; }
+  .rv .top { display:flex; justify-content:space-between; align-items:center; font-size:12px; }
+  .rv .n { font-weight:700; color:var(--amber); }
+  .rv .pics { display:flex; gap:4px; align-items:center; height:50px; background:#16181b; border-radius:6px; padding:2px; }
+  .rv .pics img.model { flex:1; min-width:0; max-height:46px; object-fit:contain; }
+  .rv .pics canvas { height:40px; max-width:60px; border-radius:4px; }
+  .rv select, .rv input { font:inherit; font-size:12px; background:#111; color:var(--text); border:1px solid #3a3f46; border-radius:5px; padding:3px 5px; width:100%; }
+  .rv .two { display:flex; gap:4px; }
+  .rv .meta { font-size:11px; color:var(--muted); }
+  .rv .partial { color:#ff8a65; }
+  #rvBar { position:fixed; left:0; right:0; bottom:0; padding:10px; display:flex; gap:8px; background:rgba(18,20,23,.96); border-top:1px solid var(--line); }
+  #rvBar button { flex:1; padding:10px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/",
+  "builder": "./builder.js", "tools": "./tools.js", "toolmodels": "./toolmodels.js", "modelfinder": "./modelfinder.js"
+} }
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="msg">Loading 3D…</div>
+<div id="label"></div>
+<div id="hud">
+  <div class="row"><button class="big" id="tPrev">‹</button><div id="tName"></div><button class="big" id="tNext">›</button></div>
+  <div id="tCount"></div>
+  <button id="tOpen">Open this tool</button>
+</div>
+<div id="editbar">
+  <span id="hint">Drag a piece to move it</span>
+  <button id="undo" disabled>↶ Undo</button><button id="rotL">⟲</button><button id="rotR">⟳</button>
+</div>
+<div id="chips"></div>
+<div id="review">
+  <img id="rvPhoto" alt="">
+  <div id="rvHead"></div><div id="rvNote"></div>
+  <div id="rvList"></div>
+  <div id="rvBar"><button id="rvCancel">Cancel</button><button id="rvAdd" class="on">Add</button></div>
+</div>
+
+<script type="module">
+// The app's 3D viewer. The Flutter app calls window.viewer.load(request) and listens to messages
+// posted through the "App" channel. Requests:
+//   { mode: 'unit',   place: {id, name, spec}, tools: {partName: [tool]}, focus: {part, item} }
+//   { mode: 'shop',   scene, specs: {id: spec}, names: {id: name}, tools: {id: {partName: [tool]}}, focus: {place, part, item} }
+//   { mode: 'review', photo: dataURL, result: {tools, hiddenNote}, drawerName }
+// A tool is { id, name, lengthIn, model: {type, variant, colors}, glb?: url }.
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { buildModel, buildScene, animate } from 'builder';
+import { ToolCarousel, photoCanvas, photoBackground, cutDetection, drawDetections } from 'tools';
+import { toolThumb, TOOL_TYPES, TOOL_VARIANTS } from 'toolmodels';
+import { fitModel } from 'modelfinder';
+
+const post = (type, data = {}) => { const m = JSON.stringify({ type, ...data }); if (window.App?.postMessage) window.App.postMessage(m); else console.log('[App]', m); };
+const $ = id => document.getElementById(id);
+
+// ---------- renderer ----------
+const view = $('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.appendChild(renderer.domElement);
+const scene3 = new THREE.Scene();
+scene3.background = new THREE.Color(0x1a1d21);
+scene3.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene3.environmentIntensity = 0.6;
+const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 20000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2 - 0.02; controls.screenSpacePanning = false;
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+const sun = new THREE.DirectionalLight(0xffffff, 1.9); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0003;
+scene3.add(sun, sun.target, new THREE.HemisphereLight(0xffffff, 0x8a8a80, 0.6));
+const carousel = new ToolCarousel(scene3, camera);
+
+let root = null, placed = [], req = null, room = null, current = null, selected = null, openTools = [];
+
+function resize() { const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+let fly = null;
+function flyTo(pos, tgt) { fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: tgt, k: 0 }; }
+function fitDist(w, h) {
+  const v = THREE.MathUtils.degToRad(camera.fov) / 2, hz = Math.atan(Math.tan(v) * camera.aspect);
+  return Math.max((w / 2) / Math.tan(hz), (h / 2) / Math.tan(v)) * 1.12;
+}
+function overviewPose() {
+  const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+  if (room) { const d = fitDist(room.width, room.depth * 0.8); return [new THREE.Vector3(room.width / 2, d * 0.55, room.depth / 2 + d * 0.85), new THREE.Vector3(room.width / 2, 30, room.depth / 2)]; }
+  const d = fitDist(Math.max(s.x, s.z), s.y);
+  return [c.clone().add(new THREE.Vector3(-0.45, 0.25, 0.86).normalize().multiplyScalar(d)), c];
+}
+function frontOf(p) { const r = p.group.rotation.y; return new THREE.Vector3(Math.sin(r), 0, Math.cos(r)); }
+function focusPlace(p) {
+  const b = new THREE.Box3().setFromObject(p.group), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+  const f = frontOf(p), side = new THREE.Vector3(f.z, 0, -f.x).multiplyScalar(-0.35);
+  flyTo(c.clone().add(f.clone().add(side).normalize().multiplyScalar(fitDist(Math.max(s.x, s.z), s.y) + 10)).add(new THREE.Vector3(0, s.y * 0.2, 0)), c);
+}
+
+// ---------- building ----------
+function clear() {
+  pick(null);
+  if (root) { scene3.remove(root); root.traverse(o => o.geometry?.dispose()); }
+  root = null; placed = []; room = null;
+}
+function mountUnit(place) {
+  const st = buildModel(structuredClone(place.spec));
+  root = new THREE.Group(); root.add(st.model);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.ShadowMaterial({ opacity: 0.25 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; root.add(ground);
+  scene3.add(root);
+  placed = [{ id: place.id, name: place.name || place.spec.name, group: st.model, selectable: st.selectable, lids: st.lids, src: null }];
+}
+function mountShop(r) {
+  const S = buildScene(r.scene || { items: [] }, r.specs || {});
+  root = S.root; room = S.room; scene3.add(root);
+  placed = S.placed.map(p => ({ ...p, name: (r.names || {})[p.id] || p.name }));
+}
+function light() {
+  const b = new THREE.Box3().setFromObject(root), c = b.getCenter(new THREE.Vector3()), R = b.getSize(new THREE.Vector3()).length() / 2 + 20;
+  sun.position.set(c.x - R * 0.4, c.y + R * 1.6, c.z + R * 1.2); sun.target.position.copy(c);
+  Object.assign(sun.shadow.camera, { left: -R, right: R, top: R, bottom: -R, near: 1, far: R * 6 }); sun.shadow.camera.updateProjectionMatrix();
+}
+
+// ---------- selection: place → part (drawer/door/shelf) → tools ----------
+const label = $('label'), chips = $('chips'), hud = $('hud');
+const partName = s => s.userData.name;                   // e.g. "Roll cab · Drawer 3"
+const short = s => s.userData.name.split(' · ').slice(1).join(' · ');
+function pick(p, keepCamera) {
+  current = p; selected = null; closeTools();
+  for (const q of placed) for (const s of q.selectable) s.userData.target = 0;
+  label.style.display = p ? 'block' : 'none'; if (p) label.textContent = p.name;
+  chips.innerHTML = '';
+  if (!p) return;
+  if (!keepCamera && placed.length > 1) focusPlace(p);
+  for (const s of p.selectable) {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = short(s);
+    b.onclick = () => choose(p, selected === s ? null : s); chips.appendChild(b);
+  }
+}
+function choose(p, s) {
+  selected = s;
+  for (const q of p.selectable) q.userData.target = q === s && q.userData.mode !== 'glow' ? 1 : 0;
+  [...chips.children].forEach((c, i) => c.classList.toggle('on', p.selectable[i] === s));
+  label.textContent = s ? `${p.name} → ${short(s)}` : p.name;
+  if (s) { post('part', { place: p.id, part: partName(s) }); showTools(p, s); } else closeTools();
+}
+function anchorFor(p, s) {
+  return () => {
+    const b = new THREE.Box3().setFromObject(s), c = b.getCenter(new THREE.Vector3());
+    return new THREE.Vector3(c.x, b.max.y + 12, c.z).addScaledVector(frontOf(p), 16);
+  };
+}
+function toolsFor(p, s) {
+  const t = req.mode === 'unit' ? req.tools : (req.tools || {})[p.id];
+  return (t || {})[partName(s)] || [];
+}
+async function showTools(p, s, itemId) {
+  openTools = toolsFor(p, s);
+  const a = anchorFor(p, s)(), f = frontOf(p), side = new THREE.Vector3(f.z, 0, -f.x);
+  flyTo(a.clone().addScaledVector(f, 80).addScaledVector(side, -12).add(new THREE.Vector3(0, 10, 0)), a.clone().add(new THREE.Vector3(0, -5, 0)));
+  carousel.show(openTools, anchorFor(p, s));
+  const i = openTools.findIndex(t => t.id === itemId); if (i >= 0) carousel.index = i;
+  hud.style.display = openTools.length ? 'block' : 'none';
+  updateHud();
+  // tools from the library (a model file) replace the simple ones when they arrive
+  for (const [n, t] of openTools.entries()) if (t.glb) loadGlb(t).then(g => { if (g && carousel.items[n]?.tool === t) carousel.replace(n, g); }).catch(() => {});
+}
+const glbCache = new Map();
+function loadGlb(t) {
+  if (!glbCache.has(t.glb)) glbCache.set(t.glb, fetch(t.glb).then(r => r.arrayBuffer()).then(data => fitModel({ kind: 'glb', data }, 1)));
+  return glbCache.get(t.glb).then(g => { const c = g.clone(); c.scale.multiplyScalar(t.lengthIn || 8); return c; });
+}
+function closeTools() { carousel.hide(); hud.style.display = 'none'; }
+function updateHud() {
+  const n = carousel.items.length; if (!n) return;
+  $('tName').textContent = carousel.current.name;
+  $('tCount').textContent = `${carousel.index + 1} of ${n}${carousel.current.lengthIn ? ` · ${carousel.current.lengthIn}" long` : ''}`;
+  $('tPrev').disabled = $('tNext').disabled = n < 2;
+}
+$('tPrev').onclick = () => { carousel.step(-1); updateHud(); };
+$('tNext').onclick = () => { carousel.step(1); updateHud(); };
+$('tOpen').onclick = () => { if (carousel.current) post('item', { id: carousel.current.id }); };
+// swipe across the tool row to flip through tools
+let sw = null;
+hud.addEventListener('touchstart', e => { sw = e.touches[0].clientX; }, { passive: true });
+hud.addEventListener('touchend', e => { if (sw == null) return; const dx = e.changedTouches[0].clientX - sw; if (Math.abs(dx) > 40) { carousel.step(dx < 0 ? 1 : -1); updateHud(); } sw = null; });
+
+// tap in 3D
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); let downAt = null;
+const setMouse = e => { const r = renderer.domElement.getBoundingClientRect(); mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(mouse, camera); };
+const placeOf = obj => placed.find(q => { let o = obj; while (o) { if (o === q.group) return true; o = o.parent; } return false; });
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; }, true);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (editing || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6 || !root) return;
+  setMouse(e);
+  for (const hit of ray.intersectObjects(placed.map(p => p.group), true)) {
+    const p = placeOf(hit.object); if (!p) continue;
+    if (p !== current) { pick(p); post('place', { place: p.id }); return; }
+    let o = hit.object; while (o && !p.selectable.includes(o)) o = o.parent;
+    if (o) choose(p, selected === o ? null : o);
+    return;
+  }
+});
+
+// mouse wheel / trackpad: flip tools when the carousel is open, otherwise pan; ctrl+wheel/pinch zooms
+let wheelAcc = 0;
+view.addEventListener('wheel', e => {
+  e.preventDefault(); e.stopPropagation();
+  const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  if (carousel.visible && carousel.items.length > 1 && !(e.ctrlKey || e.metaKey)) {
+    wheelAcc += (Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX) * unit;
+    while (wheelAcc >= 60) { carousel.step(1); wheelAcc -= 60; } while (wheelAcc <= -60) { carousel.step(-1); wheelAcc += 60; }
+    updateHud(); return;
+  }
+  const off = camera.position.clone().sub(controls.target), dist = off.length();
+  if (e.ctrlKey || e.metaKey) { camera.position.copy(controls.target).add(off.setLength(THREE.MathUtils.clamp(dist * Math.exp(e.deltaY * unit * 0.002), 10, 5000))); }
+  else {
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; if (fwd.lengthSq() < 1e-4) fwd.set(0, 0, -1); fwd.normalize();
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x), k = dist * 0.0007;
+    const move = right.multiplyScalar(e.deltaX * unit * k).add(fwd.multiplyScalar(-e.deltaY * unit * k));
+    controls.target.add(move); camera.position.add(move);
+  }
+  fly = null;
+}, { capture: true, passive: false });
+
+// ---------- shop layout editing: drag, rotate, undo ----------
+let editing = false, active = null, drag = null;
+const undoStack = [], floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const boxOf = p => new THREE.Box3().setFromObject(p.group);
+const overlap = (a, b) => [Math.min(a.max.x, b.max.x) - Math.max(a.min.x, b.min.x), Math.min(a.max.z, b.max.z) - Math.max(a.min.z, b.min.z)];
+const snap = () => placed.map(p => [p.group.position.x, p.group.position.z, p.group.rotation.y]);
+function settle(p) {
+  for (let it = 0; it < 30; it++) {
+    let moved = false;
+    for (const q of placed) {
+      if (q === p) continue;
+      const a = boxOf(p), b = boxOf(q), [ox, oz] = overlap(a, b); if (ox <= 0.5 || oz <= 0.5) continue;
+      const ca = a.getCenter(new THREE.Vector3()), cb = b.getCenter(new THREE.Vector3());
+      if (ox < oz) p.group.position.x += (Math.sign(ca.x - cb.x) || 1) * (ox + 1); else p.group.position.z += (Math.sign(ca.z - cb.z) || 1) * (oz + 1);
+      moved = true;
+    }
+    if (room) {
+      const b = boxOf(p);
+      if (b.min.x < 0) p.group.position.x -= b.min.x; else if (b.max.x > room.width) p.group.position.x -= b.max.x - room.width;
+      if (b.min.z < 0) p.group.position.z -= b.min.z; else if (b.max.z > room.depth) p.group.position.z -= b.max.z - room.depth;
+    }
+    if (!moved) break;
+  }
+}
+function saveLayout() {
+  for (const p of placed) if (p.src) { p.src.x = Math.round(p.group.position.x); p.src.z = Math.round(p.group.position.z); p.src.rotation = Math.round(THREE.MathUtils.radToDeg(p.group.rotation.y)) % 360; }
+  post('scene', { scene: req.scene });
+}
+function hint() {
+  const h = $('hint');
+  if (!active) { h.className = ''; h.textContent = 'Drag a piece to move it · tap it, then rotate'; return; }
+  const a = boxOf(active), hits = placed.filter(q => q !== active && (([x, z]) => x > 0.5 && z > 0.5)(overlap(a, boxOf(q))));
+  h.className = hits.length ? 'warn' : ''; h.textContent = hits.length ? `Overlaps ${hits.map(q => q.name).join(', ')}, drop to slide clear` : active.name;
+}
+function setEdit(on) {
+  editing = !!on && req?.mode === 'shop'; active = null; drag = null;
+  $('editbar').style.display = editing ? 'flex' : 'none'; chips.style.display = editing ? 'none' : '';
+  pick(null);
+  if (editing) flyTo(new THREE.Vector3(room.width / 2, fitDist(room.width, room.depth), room.depth / 2 + 1), new THREE.Vector3(room.width / 2, 0, room.depth / 2));
+  hint();
+}
+function rotate(deg) { if (!active) return; undoStack.push(snap()); $('undo').disabled = false; active.group.rotation.y += THREE.MathUtils.degToRad(deg); settle(active); saveLayout(); hint(); }
+$('rotL').onclick = () => rotate(90); $('rotR').onclick = () => rotate(-90);
+$('undo').onclick = () => {
+  const s = undoStack.pop(); if (!s) return;
+  placed.forEach((p, i) => { p.group.position.x = s[i][0]; p.group.position.z = s[i][1]; p.group.rotation.y = s[i][2]; });
+  $('undo').disabled = !undoStack.length; saveLayout(); hint();
+};
+const floorAt = e => { setMouse(e); return ray.ray.intersectPlane(floorPlane, new THREE.Vector3()); };
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (!editing) return;
+  setMouse(e);
+  const hit = ray.intersectObjects(placed.map(p => p.group), true)[0], p = hit && placeOf(hit.object);
+  active = p || null; hint(); if (!p) return;
+  const f = floorAt(e); if (!f) return;
+  drag = { p, off: p.group.position.clone().sub(f), before: snap() };
+  controls.enabled = false; renderer.domElement.setPointerCapture(e.pointerId);
+}, true);
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!drag) return; const f = floorAt(e); if (!f) return;
+  drag.p.group.position.x = Math.round(f.x + drag.off.x); drag.p.group.position.z = Math.round(f.z + drag.off.z); hint();
+});
+renderer.domElement.addEventListener('pointerup', () => {
+  if (!drag) return; settle(drag.p);
+  const now = snap(); if (now.some((v, i) => v[0] !== drag.before[i][0] || v[1] !== drag.before[i][1])) { undoStack.push(drag.before); $('undo').disabled = false; saveLayout(); }
+  drag = null; controls.enabled = true; hint();
+});
+
+// ---------- whole-drawer photo review ----------
+function showReview(r) {
+  const img = new Image();
+  img.onload = () => {
+    const src = photoCanvas(img), surface = photoBackground(src), dets = (r.result?.tools || []).filter(d => d.ends?.length === 2), cards = [];
+    const redraw = hi => { $('rvPhoto').src = drawDetections(src, dets, hi).toDataURL('image/jpeg', 0.82); };
+    $('rvList').innerHTML = '';
+    dets.forEach((d, i) => {
+      let crop = null; try { crop = cutDetection(src, d, surface).canvas; } catch { /* none */ }
+      d.model = d.model && TOOL_TYPES.includes(d.model.type) ? d.model : { type: 'box', colors: {} };
+      d.skip = (d.confidence ?? 1) < 0.25;
+      const card = document.createElement('div'); card.className = 'rv' + (d.skip ? ' off' : '');
+      card.innerHTML = `<div class="top"><span class="n">${i + 1}</span><label><input type="checkbox" style="width:auto" ${d.skip ? '' : 'checked'}> keep</label></div>
+        <div class="pics"><img class="model"></div>
+        <input type="text"><div class="two"><select class="type"></select><select class="variant"></select></div>
+        <div class="meta">length <input type="number" step="0.5" min="0.5" style="width:56px;display:inline-block"> in${d.visible === 'partial' ? ' · <span class="partial">partly hidden</span>' : ''}</div>`;
+      if (crop) card.querySelector('.pics').appendChild(crop);
+      const name = card.querySelector('input[type=text]'), len = card.querySelector('input[type=number]'), keep = card.querySelector('input[type=checkbox]');
+      const typeSel = card.querySelector('.type'), varSel = card.querySelector('.variant'), mi = card.querySelector('img.model');
+      for (const t of TOOL_TYPES) typeSel.add(new Option(t.replace('-', ' '), t));
+      const fillVar = () => { varSel.innerHTML = ''; const vs = TOOL_VARIANTS[d.model.type] || []; varSel.style.display = vs.length ? '' : 'none'; for (const v of vs) varSel.add(new Option(v, v)); if (vs.length && !vs.includes(d.model.variant)) d.model.variant = vs[0]; varSel.value = d.model.variant || ''; };
+      const thumb = () => { mi.src = toolThumb(d.model, +len.value || 8, 220, 90); };
+      typeSel.value = d.model.type; fillVar();
+      typeSel.onchange = () => { d.model.type = typeSel.value; fillVar(); thumb(); };
+      varSel.onchange = () => { d.model.variant = varSel.value; thumb(); };
+      name.value = d.name || 'Tool'; len.value = d.lengthIn || 8; len.onchange = thumb; thumb();
+      keep.onchange = () => { d.skip = !keep.checked; card.classList.toggle('off', d.skip); redraw(i); count(); };
+      card.onclick = () => redraw(i);
+      $('rvList').appendChild(card); cards.push({ d, crop, name, len });
+    });
+    const count = () => { const n = cards.filter(c => !c.d.skip).length; $('rvAdd').textContent = `Add ${n} to ${r.drawerName || 'drawer'}`; };
+    $('rvHead').textContent = `Found ${dets.length} tools`;
+    $('rvNote').textContent = (r.result?.hiddenNote ? r.result.hiddenNote + ' ' : '') + 'Untick anything wrong, fix names or the 3D type, then add.';
+    $('rvAdd').onclick = () => {
+      const tools = cards.filter(c => !c.d.skip).map(c => ({ name: c.name.value.trim() || 'Tool', lengthIn: +c.len.value || c.d.lengthIn || 8, category: c.d.category || 'hand',
+        model: c.d.model, photo: c.crop ? c.crop.toDataURL('image/jpeg', 0.85) : null }));
+      post('addTools', { tools });
+    };
+    $('rvCancel').onclick = () => post('cancel');
+    redraw(-1); count(); $('review').style.display = 'block';
+  };
+  img.src = r.photo;
+}
+
+// ---------- the app's entry point ----------
+window.viewer = {
+  load(r) {
+    req = r; $('msg').style.display = 'none'; $('review').style.display = 'none';
+    if (r.mode === 'review') { clear(); showReview(r); return; }
+    clear(); undoStack.length = 0; $('undo').disabled = true;
+    try { r.mode === 'shop' ? mountShop(r) : mountUnit(r.place); }
+    catch (e) { $('msg').style.display = 'block'; $('msg').textContent = 'Could not build the 3D model: ' + e.message; post('error', { message: e.message }); return; }
+    light();
+    const [p, t] = overviewPose(); camera.position.copy(p); controls.target.copy(t); controls.update();
+    // tell the app which drawers/doors/shelves exist, so it can link them to its locations
+    for (const q of placed) if (q.selectable.length) post('parts', { place: q.id, parts: q.selectable.map(s => ({ name: partName(s), mode: s.userData.mode })) });
+    const f = r.focus || {};
+    const fp = r.mode === 'unit' ? placed[0] : placed.find(q => q.id === f.place);
+    if (fp) {
+      pick(fp, r.mode === 'unit');
+      const s = f.part && fp.selectable.find(x => partName(x) === f.part);
+      if (s) { selected = s; for (const q of fp.selectable) q.userData.target = q === s && q.userData.mode !== 'glow' ? 1 : 0; [...chips.children].forEach((c, i) => c.classList.toggle('on', fp.selectable[i] === s)); label.textContent = `${fp.name} → ${short(s)}`; showTools(fp, s, f.item); }
+    }
+  },
+  setEdit,
+  overview() { pick(null); const [p, t] = overviewPose(); flyTo(p, t); },
+  topView() { if (room) flyTo(new THREE.Vector3(room.width / 2, fitDist(room.width, room.depth), room.depth / 2 + 1), new THREE.Vector3(room.width / 2, 0, room.depth / 2)); },
+};
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const t = clock.getElapsedTime();
+  if (fly) { fly.k = Math.min(1, fly.k + 0.035); const e = 1 - Math.pow(1 - fly.k, 3); camera.position.lerpVectors(fly.p0, fly.p1, e); controls.target.lerpVectors(fly.t0, fly.t1, e); if (fly.k >= 1) fly = null; }
+  for (const p of placed) animate(p, p === current ? selected : null, t);
+  carousel.update(t);
+  controls.update(); renderer.render(scene3, camera);
+});
+post('ready');
+</script>
+</body>
+</html>

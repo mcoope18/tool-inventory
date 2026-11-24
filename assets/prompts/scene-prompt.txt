@@ -1,0 +1,52 @@
+You are laying out a 3D map of a shop so its owner can find where things are stored.
+
+You get:
+- OVERVIEW photos: wide shots of one room/area of the shop, taken from where a person stands.
+- A CATALOG of storage furniture that has already been modeled in 3D. Each entry has an id, a name, its size
+  (width x depth x height, inches, front = the side with drawers/doors) and a close-up photo of it.
+  Some catalog items may live in other rooms and not appear in these overview photos at all.
+
+Catalog:
+{{CATALOG}}
+
+Build a floor plan of the area shown in the overview photos.
+
+Coordinates (inches): look at the FIRST overview photo. The wall straight ahead (farthest from the camera) is
+the BACK wall. x runs left to right along the back wall, starting at the left wall (x = 0).
+z runs from the back wall (z = 0) toward the camera. The floor is y = 0.
+An item's position is the CENTER of its footprint. "rotation" is the direction its front faces:
+0 = faces the camera (away from the back wall), 90 = faces right (+x), -90 = faces left, 180 = faces the back wall.
+A cabinet pushed against the left wall faces right (90): its x = its depth / 2.
+
+Return ONLY JSON:
+{
+  "room": { "name": "short name, e.g. Main shop bay", "width": in, "depth": in, "height": in,
+            "floorColor": "#hex", "wallColor": "#hex" },
+  "items": [ { "item": "catalog id", "x": in, "z": in, "rotation": deg, "where": "plain words, e.g. back wall, right of the Husky cabinets" } ],
+  "extras": [ ... things in the overview photos that are NOT in the catalog ... ],
+  "notSeen": [ "catalog ids that do not appear in the overview photos" ]
+}
+
+"extras" entries are { "x", "z", "rotation", "where", "spec": SPEC } where SPEC is a one-piece model description:
+- Storage furniture (shelving, cabinets, carts): a full spec in the same format as the catalog models, i.e.
+  { "name", "color", "finish", "units": [ { "sections": [ ... ] } ] } using the section types from the
+  format reference below. Keep it simple but recognizable.
+- Machines and big equipment (welders, robots, CNC machines, compressors, electrical panels, ladders):
+  { "name", "units": [ { "sections": [ { "type": "block", "label": "short name", "width", "depth", "height",
+  "color": "#hex" } ] } ] }. Include only the large ones that help someone recognize the room.
+Skip trash cans, loose boxes, cords, small items on the floor and anything smaller than about 18".
+
+Rules:
+- Match catalog items by their close-up photo (shape, color, drawer layout), not just by name.
+- Keep relative positions right: what is left of / right of / in front of what, and which wall it is against.
+  Items standing side by side should touch or nearly touch, not overlap.
+- Use the catalog sizes for spacing. Estimate the room size from the furniture in it.
+- Footprints must never overlap (swap width/depth for items rotated 90/-90); nothing stands on top of another
+  item. Look for open floor between rows of furniture: walkways are usually 30-60" wide.
+- Judge depth carefully: an item that looks lower in the photo and larger is closer to the camera (bigger z).
+  Items partly hidden behind another item are behind it (smaller z), not beside it.
+- Shelving and cabinets that meet at a corner are perpendicular: one faces the room, the other faces sideways.
+- If several overview photos are given, they show the same area from different spots: combine them into one plan.
+
+Format reference for "spec":
+{{FORMAT}}

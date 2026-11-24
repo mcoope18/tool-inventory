@@ -1,0 +1,80 @@
+This photo shows storage furniture in a shop or office: a tool chest, roll cab, cabinet, file cabinet,
+desk, shelving, tote rack, cart, truck box, or several of these together.
+Describe it so a 3D model can be built that anyone would recognize as this exact piece of furniture.
+
+The user will NOT give measurements. Estimate real sizes in inches from proportions and from typical sizes
+of this kind of product (roll cabs ~26-56" wide x 18-24" deep; top chests 12-16" deep; kitchen base cabinets
+34.5" tall x 24" deep; desks 29-30" tall; file cabinets 15" wide x 25-28" deep; 27-gal totes 30x20x15").
+
+Return ONLY JSON, no other text:
+{
+  "name": "short description, e.g. Black 9-drawer roll cab",
+  "color": "#hex of the main body, as it would look clean and evenly lit",
+  "finish": "textured" | "gloss" | "satin" | "wood" | "plastic",
+  "units": [ UNIT, ... ],              left to right, as seen from the front
+  "countertop": { "thickness": in, "overhang": in, "color": "#hex", "finish": "wood"|"satin" }   (only if ONE top spans several units)
+}
+
+UNIT = { "gap": in (space before this unit, default 0), "sections": [ SECTION, ... ] }   sections stacked from the floor up
+
+Every SECTION has: "type", "label" (what a person would call it: "Roll cab", "Top chest", "Left cabinet"...),
+"width", "depth", "height" (in, body only: NOT wheels, lid, toe kick or top lip), and optionally:
+  "color", "finish"              (if different from the overall ones)
+  "casters": { "diameter": in, "color": "#hex" }   (if on wheels)
+  "toeKick": in                  (recessed kick base, kitchen cabinets)
+  "setBack": in                  (how far its front sits behind the front of the section below)
+
+type "cabinet" or "chest" (anything with a face of drawers/doors):
+  "face": { "top": in, "bottom": in, "sides": in, "layout": LAYOUT }   solid frame bands around the drawers/doors
+  "pull": "toolbox" | "recessed" | "bar" | "file" | "knob" | "none"    default drawer pull
+          toolbox = chrome bar along the top edge of each drawer; recessed = full-width lip along the top edge;
+          bar = short bar/handle pull; file = file-cabinet handle with label holder;
+          label = small parts-bin drawer with a label card and a lip pull
+  "pullColor": "chrome" | "aluminum" | "black" | "#hex"
+  "doorStyle": "flat" | "shaker" | "pegboard",  "doorPull": "bar" | "rod" | "knob" | "none"
+  "interiorShelves": [0..1 heights of shelves inside, from the bottom]   (cabinets with doors)
+  "pegboard": true               (perforated side panels)
+  "lid": { "angle": degrees (0 closed, as seen in photo), "height": in }  (lift-up lid on top)
+  "sideProfile": { "frontHeight": in, "slantDepth": in }   (chests whose sides slope down toward the front,
+                                  like modern chests with a hood lid; frontHeight = height of the drawer face)
+  "openTop": true, "tillDepth": in   (chest with an open till under a flat lid)
+  "topLip": true, "topMat": "#hex"   (raised lip / mat around a work surface)
+  "lock": true, "badge": true,  "sideHandles": true | "recessed",  "frontBumper": true
+  "sideRails": [ { "side": "left"|"right", "y": 0..1 } ],
+  "pushHandle": { "side": "left"|"right", "color": "#hex", "grip": true (rubber grip) }
+
+type "desk": "top": { "thickness", "overhang", "color", "finish" }, "legs": "posts" | "none",
+  "pedestals": [ { "side": "left"|"right", "width": in, "layout": LAYOUT, "pull": ... } ],
+  "centerDrawer": { "height": in }, "pull", "pullColor"
+
+type "shelving" (shelves, racks, tote racks): "columns": n,
+  "shelves": [0..1 height of EVERY level things sit on, bottom first - include the bottom level (0) if bins sit on the base],
+  "material": "wood" | "steel", "style": "boards" | "ledge" (ledge = totes hang on side cleats, no boards),
+  "deck": "wire" | "board" | "steel"  (steel shelving: wire grid decks, particle-board decks, or solid steel),
+  "color" = upright/beam color (steel shelving uprights are drawn with punched holes),
+  "base": true (solid base frame), "shelfColor": "#hex",
+  "bins": [ { "column": i | "all", "shelf": i, "count": n per bay, "color": "#body", "lidColor": "#hex" } ]
+      one entry per bay/level that holds bins or totes - list every tote you can see
+
+type "louvered" (any rack or wall panel with rows of small hanging/stacking parts bins - use this, not "frame",
+  for fastener and parts-bin racks): "color" (frame), "panelColor",
+  "rows": [ { "y": 0..1 height on the panel, "count": bins in that row, "color": "#hex", "height": in, "depth": in } ]
+type "frame" (welded cart or bench frame): "tube": in, "shelves": [0..1], "top": true (sheet top)
+type "truckbox" (diamond-plate truck tool box)
+
+LAYOUT is a tree that divides the drawer face exactly as it looks:
+  { "split": "rows" | "cols", "parts": [ { "size": relative, ...LAYOUT or LEAF } ] }
+  LEAF = { "kind": "drawer" | "door" | "panel", "pull": ..., "hinge": "left"|"right" (doors),
+           "open": degrees (doors open in the photo), "panel": "flat"|"shaker"|"pegboard" }
+  "size" = relative height (rows) or width (cols) as seen in the photo.
+
+Rules:
+- Count EVERY drawer and door. Drawer heights follow the photo: shallow drawers small, deep drawers big.
+- Side-by-side drawer stacks go in a "cols" split inside the row they occupy.
+- Separate pieces of furniture standing side by side are separate UNITS. Pieces stacked on each other are
+  sections of the same unit.
+- Storage units that sit on top (a truck box, top chest, small cabinet or hutch) ARE part of the furniture:
+  add each as a section stacked on the one below it.
+- Ignore clutter, loose tools, stickers, brand logos, and items stored on or in the furniture.
+- On black or dark furniture, still report the real pull color (often chrome or aluminum) so drawers stay visible.
+- Doors that are open in the photo: give "open" so the model matches the photo.

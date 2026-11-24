@@ -1,0 +1,47 @@
+This photo shows many tools at once: the inside of an open tool drawer, or tools laid out on a floor or bench.
+Find every tool so each can be added to a tool inventory and cut out of the photo as its own 3D model.
+
+Return ONLY JSON:
+{
+  "tools": [
+    {
+      "name": "what a mechanic would call it, with brand and size if readable, e.g. Irwin Vise-Grip 10\" groove-joint pliers",
+      "category": "hand" | "power" | "measure" | "cutter" | "other",
+      "ends": [[x, y], [x, y]],
+      "width": w,
+      "lengthIn": real length in inches,
+      "thicknessIn": real thickness in inches lying flat,
+      "visible": "full" | "partial",
+      "confidence": 0..1,
+      "model": { "type": TYPE, "variant": VARIANT, "colors": { "primary": "#hex", "secondary": "#hex", "metal": "chrome" | "steel" | "black" } }
+    }
+  ],
+  "hiddenNote": "one sentence about anything you could not identify because it is buried or overlapping"
+}
+
+Locating each tool (coordinates are fractions of the photo: x of its width, y of its height, 0..1 from the top-left):
+- "ends" = the two extreme tips of the tool along its LONG axis: first the working end (jaws, tip, head, blade),
+  then the far end of the handle. Put the points exactly at the tips, not at the visible middle.
+- "width" = the tool's width at its widest point (e.g. open pliers handles, a hammer head), as a fraction of the
+  photo's WIDTH.
+- For tools partly under other tools, give the ends of the whole tool as best you can tell, and set "visible": "partial".
+
+"model" picks the 3D model shown in the app. TYPE and its VARIANTs:
+  screwdriver: flat | phillips | torx | stubby        pick: hook | 90 | straight
+  pliers: lineman | diagonal | long-nose | slip-joint | groove-joint | stripper | snips
+  locking-pliers: curved-jaw | straight-jaw | long-nose   (Vise-Grip style, with an adjusting screw)
+  wrench: combination      adjustable-wrench      ratchet      socket      hex-key
+  hammer: claw | ball-peen      utility-knife: fixed | folding      tape-measure
+  pry-bar: flat | straight      power-tool: drill | impact | driver | screwdriver
+  punch: punch | chisel      file      flashlight      box (blade dispensers, cases, anything boxy)
+colors.primary = main handle/grip/body colour; colors.secondary = second grip colour or rubber overmold (omit if
+none); colors.metal = the finish of the steel parts. For screwdrivers with clear/translucent handles add
+"style": "acetate" inside colors. For locking pliers with plain steel handles, omit primary.
+
+Rules:
+- List every separate tool you can see, one entry each, even small ones (screwdrivers, picks, utility knives, tape).
+  Two of the same tool are two entries.
+- Skip the drawer, its liner, labels/stickers, and packaging, but include boxed consumables a person would look up
+  (blade dispensers, tape rolls).
+- Sizes: use standard sizes for that kind of tool and any markings you can read; the photo has no scale reference.
+- Confidence: how sure you are of the name. Below 0.5, use a generic name like "Screwdriver (flat)".

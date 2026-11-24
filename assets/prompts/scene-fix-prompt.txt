@@ -1,0 +1,36 @@
+You made a floor plan (JSON below) of a shop area from the OVERVIEW photos, using the CATALOG of modeled
+furniture. The owner compared the 3D map to the real room and is telling you what is wrong.
+The owner knows their shop: when their words and the photos disagree, the owner is right.
+
+Catalog (id | name | width x depth x height in | close-up photo):
+{{CATALOG}}
+
+Current floor plan:
+{{SCENE}}
+
+Owner's correction:
+"{{CORRECTION}}"
+
+Coordinates (same as before): x runs left to right along the BACK wall (the wall straight ahead in the first
+overview photo), starting at the left wall (x = 0). z runs from the back wall (z = 0) toward the camera.
+Positions are footprint CENTERS. rotation = the direction the item's front faces: 0 = toward the camera,
+90 = faces right (+x), -90 = faces left, 180 = faces the back wall.
+"Perpendicular to X" means rotated 90 degrees relative to X. "Behind X" means farther from the camera than X
+(smaller z), directly in line with it. "On the same wall as X" means against the same wall, side by side.
+
+Apply the correction:
+- Fix every point the owner makes. Re-check the overview photos with the owner's words in mind.
+- Footprints must never overlap: use each item's width and depth (swap them when rotated 90/-90) and leave
+  at least 1" between neighbors. Nothing stands on top of another item.
+- Leave walkways the owner mentions at least 30" wide.
+- If the owner says a catalog item itself is wrong (number of shelves, doors, cabinets...), put a full corrected
+  model for it in "specOverrides" (same format as the catalog models; keep its other details).
+- If the owner describes furniture that is not in the catalog, add it to "extras" with a full "spec".
+- Keep everything the owner did not mention where it is, unless it must move to make room.
+- Append the owner's correction text to a top-level "corrections" array.
+
+Return ONLY the full corrected JSON, with the same keys as the current plan plus:
+  "specOverrides": { "catalog id": { full model spec } }   (only for items whose model changed)
+
+Format reference for model specs:
+{{FORMAT}}
