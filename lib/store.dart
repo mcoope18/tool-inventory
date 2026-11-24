@@ -147,17 +147,22 @@ class Store extends ChangeNotifier {
     return true;
   }
 
-  void deleteLoc(String id) {
-    final l = loc(id);
-    if (l == null) return;
-    // Children and items move up one level so nothing is lost.
-    for (final c in locs.where((x) => x.parent == id)) {
-      c.parent = l.parent;
+  /// Removes a location and every location inside it. Tools inside are
+  /// deleted too when [withTools], otherwise they move to Unsorted.
+  void deleteLoc(String id, {bool withTools = false}) {
+    final gone = under(id);
+    if (withTools) {
+      items.removeWhere((i) => i.loc != null && gone.contains(i.loc));
+    } else {
+      for (final i in items.where((x) => x.loc != null && gone.contains(x.loc))) {
+        i.loc = null;
+      }
     }
-    for (final i in items.where((x) => x.loc == id)) {
-      i.loc = l.parent;
+    review.removeWhere((r) => withTools && r.loc != null && gone.contains(r.loc));
+    for (final r in review.where((x) => x.loc != null && gone.contains(x.loc))) {
+      r.loc = null;
     }
-    locs.remove(l);
+    locs.removeWhere((l) => gone.contains(l.id));
     changed();
   }
 

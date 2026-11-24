@@ -62,22 +62,7 @@ class LocationScreen extends StatelessWidget {
                     store.moveLoc(l.id, to.isEmpty ? null : to);
                     if (context.mounted) toast(context, '${l.name} moved to ${store.path(to.isEmpty ? null : to)}');
                   } else if (v == 'delete') {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (c) => AlertDialog(
-                        backgroundColor: kSurface,
-                        title: Text('Remove ${l.name}?'),
-                        content: const Text('Nothing is lost: anything inside moves up one level.'),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Cancel')),
-                          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Remove')),
-                        ],
-                      ),
-                    );
-                    if (ok == true) {
-                      store.deleteLoc(l.id);
-                      if (context.mounted) Navigator.pop(context);
-                    }
+                    await removeLocation(context, l);
                   }
                 },
                 itemBuilder: (_) => const [
@@ -206,9 +191,56 @@ class LocationScreen extends StatelessWidget {
                 for (final it in items)
                   ItemRow(item: it, sub: it.qty > 1 ? 'Qty ${it.qty}' : it.source, onTap: () => Navigator.of(context).pushNamed('/item', arguments: it.id)),
               ]),
+            const SizedBox(height: 28),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFFFF6B5E),
+                side: const BorderSide(color: Color(0x66FF6B5E)),
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: () => removeLocation(context, l),
+              icon: const Icon(Icons.delete_outline_rounded),
+              label: Text('Remove ${l.name}'),
+            ),
           ]),
         );
       },
     );
   }
+}
+
+/// Asks, then removes a location with everything inside it.
+Future<void> removeLocation(BuildContext context, Loc l) async {
+  final ids = store.under(l.id);
+  final subs = ids.length - 1;
+  final tools = store.items.where((i) => i.loc != null && ids.contains(i.loc)).length;
+  const red = Color(0xFFFF6B5E);
+  final what = [
+    if (subs > 0) '$subs ${subs == 1 ? 'spot' : 'drawers, shelves and spots'} inside it',
+    if (tools > 0) '$tools ${tools == 1 ? 'tool' : 'tools'}',
+  ];
+  final choice = await showDialog<String>(
+    context: context,
+    builder: (c) => AlertDialog(
+      backgroundColor: kSurface,
+      title: Text('Remove ${l.name}?'),
+      content: Text(what.isEmpty
+          ? 'It\u2019s empty. This can\u2019t be undone.'
+          : 'This removes ${l.name} and ${what.join(' and ')}.${tools > 0 ? ' Keep the tools in Unsorted, or delete them too?' : ''} This can\u2019t be undone.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(c), child: const Text('Cancel')),
+        if (tools > 0) TextButton(onPressed: () => Navigator.pop(c, 'keep'), child: const Text('Keep tools')),
+        TextButton(
+          onPressed: () => Navigator.pop(c, 'all'),
+          child: Text(tools > 0 ? 'Delete tools too' : 'Remove', style: const TextStyle(color: red, fontWeight: FontWeight.w700)),
+        ),
+      ],
+    ),
+  );
+  if (choice == null || !context.mounted) return;
+  final name = l.name;
+  store.deleteLoc(l.id, withTools: choice == 'all');
+  toast(context, 'Removed $name${subs > 0 ? ' and everything in it' : ''}${choice == 'keep' ? '. Tools moved to Unsorted.' : '.'}');
+  Navigator.pop(context);
 }
