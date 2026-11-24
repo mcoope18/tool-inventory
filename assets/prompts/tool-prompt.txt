@@ -1,0 +1,24 @@
+This photo shows one hand tool, power tool, or shop item.
+Identify it so it can be listed in a tool inventory and shown as a 3D model at its real size.
+
+Return ONLY JSON:
+{
+  "name": "what a mechanic would call it, with brand and size if readable, e.g. 1/2\" combination wrench",
+  "category": "hand" | "power" | "measure" | "cutter" | "other",
+  "lengthIn": longest dimension in inches,
+  "thicknessIn": thickness in inches lying flat,
+  "model": { "type": TYPE, "variant": VARIANT, "colors": { "primary": "#hex", "secondary": "#hex", "metal": "chrome" | "steel" | "black" } }
+}
+
+TYPE and its VARIANTs:
+  screwdriver: flat | phillips | torx | stubby        pick: hook | 90 | straight
+  pliers: lineman | diagonal | long-nose | slip-joint | groove-joint | stripper | snips
+  locking-pliers: curved-jaw | straight-jaw | long-nose   (Vise-Grip style, with an adjusting screw)
+  wrench: combination      adjustable-wrench      ratchet      socket      hex-key
+  hammer: claw | ball-peen      utility-knife: fixed | folding      tape-measure
+  pry-bar: flat | straight      power-tool: drill | impact | driver | screwdriver
+  punch: punch | chisel      file      flashlight      box (blade dispensers, cases, anything boxy)
+colors.primary = main handle/grip/body colour; colors.secondary = second grip colour or rubber overmold (omit if
+none). For clear/translucent screwdriver handles add "style": "acetate" inside colors.
+
+Estimate sizes from what the tool is (standard sizes and any markings you can read); the photo has no scale reference.

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'buy.dart';
 import 'fmt.dart';
+import 'model3d.dart';
 import 'models.dart';
 import 'parse.dart';
 import 'understand.dart';
@@ -198,6 +199,15 @@ class _ItemScreenState extends State<ItemScreen> {
                 ]),
               ),
             ),
+            if (where3D(it.loc).$1 != null) ...[
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                style: amberBtn(),
+                onPressed: () => showItemIn3D(context, it),
+                icon: const Icon(Icons.view_in_ar_rounded),
+                label: const Text('Show me in 3D'),
+              ),
+            ],
             if (mapOwner(it.loc) != null && mapOwner(it.loc)!.id != it.loc) ...[
               const SizedBox(height: 8),
               StorageMapView(

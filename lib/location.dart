@@ -4,6 +4,7 @@ import 'explorer.dart';
 
 import 'capture.dart';
 import 'fmt.dart';
+import 'model3d.dart';
 import 'models.dart';
 import 'parse.dart';
 import 'scan.dart';
@@ -141,6 +142,8 @@ class LocationScreen extends StatelessWidget {
                   ),
                 ),
               ),
+            const SizedBox(height: 12),
+            ThreeDSection(loc: l),
             const SizedBox(height: 16),
             Row(children: [
               const Text('INSIDE', style: sectionLabel),

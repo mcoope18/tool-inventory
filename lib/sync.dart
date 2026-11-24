@@ -44,6 +44,10 @@ class Sync extends ChangeNotifier {
       j['cutout'] = j['cutout'] == null ? null : _base(j['cutout'] as String);
     } else if (coll == 'locs') {
       j['mapPhoto'] = j['mapPhoto'] == null ? null : _base(j['mapPhoto'] as String);
+      j['model3dPhoto'] = j['model3dPhoto'] == null ? null : _base(j['model3dPhoto'] as String);
+      if (j['scene'] is Map && (j['scene'] as Map)['photos'] is List) {
+        j['scene'] = Map<String, dynamic>.from(j['scene'] as Map)..['photos'] = [for (final p in (j['scene'] as Map)['photos'] as List) _base('$p')];
+      }
     } else if (coll == 'review') {
       j['photo'] = _base(j['photo'] as String?);
     }
@@ -61,6 +65,10 @@ class Sync extends ChangeNotifier {
       m['cutout'] = local(m['cutout']);
     } else if (coll == 'locs') {
       m['mapPhoto'] = local(m['mapPhoto']);
+      m['model3dPhoto'] = local(m['model3dPhoto']);
+      if (m['scene'] is Map && (m['scene'] as Map)['photos'] is List) {
+        m['scene'] = Map<String, dynamic>.from(m['scene'] as Map)..['photos'] = [for (final p in (m['scene'] as Map)['photos'] as List) local(p)!];
+      }
     } else if (coll == 'review') {
       m['photo'] = local(m['photo']) ?? '';
     }
@@ -84,7 +92,13 @@ class Sync extends ChangeNotifier {
 
   List<String> _photosOf(String coll, Map<String, dynamic> j) {
     if (coll == 'items') return [...(j['photos'] as List).cast<String>(), if (j['cutout'] != null) j['cutout'] as String].where((s) => s.isNotEmpty).toList();
-    if (coll == 'locs') return [if (j['mapPhoto'] != null) j['mapPhoto'] as String];
+    if (coll == 'locs') {
+      return [
+        if (j['mapPhoto'] != null) j['mapPhoto'] as String,
+        if (j['model3dPhoto'] != null) j['model3dPhoto'] as String,
+        if (j['scene'] is Map && (j['scene'] as Map)['photos'] is List) ...[for (final p in (j['scene'] as Map)['photos'] as List) '$p'],
+      ].where((s) => s.isNotEmpty).toList();
+    }
     return [if ((j['photo'] as String?)?.isNotEmpty ?? false) j['photo'] as String];
   }
 
